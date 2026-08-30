@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
 export async function POST(req: NextRequest) {
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
   try {
     const { interviewId, transcript } = await req.json();
     if (!interviewId) return NextResponse.json({ error: 'Interview ID required' }, { status: 400 });
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
     );
 
@@ -40,23 +40,21 @@ export async function POST(req: NextRequest) {
         .eq('id', interview.candidate_id);
     }
 
-    // AI Scoring via OpenRouter
+    // AI Scoring via GitHub Models
     let scorecard = null;
-    if (OPENROUTER_API_KEY && transcript && transcript.length > 1) {
+    if (GITHUB_TOKEN && transcript && transcript.length > 1) {
       const fullTranscript = transcript
         .map((m: { speaker: string; text: string }) => `${m.speaker}: ${m.text}`)
         .join('\n');
 
-      const scoringRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const scoringRes = await fetch('https://models.inference.ai.azure.com/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-          'X-Title': 'HireAI Interview Platform',
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
@@ -68,6 +66,9 @@ export async function POST(req: NextRequest) {
               - culture_fit_score (0-100)
               - recommendation ("Strong_Hire", "Hire", "Maybe", or "Reject")
               - ai_summary (2-3 sentence evaluation)
+              - behavioral_analysis (object containing detailed scores from 0.0 to 5.0):
+                - communication_skills (grammar, comprehension, fluency, vocabulary_sufficiency, coherence)
+                - cognitive_insights (logical_reasoning, critical_thinking, problem_solving, big_picture_thinking, insightfulness, clarity, decision_making, intellectual_self_awareness)
               
               Respond ONLY with the JSON object, no markdown.`,
             },
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
             culture_fit_score: scorecard.culture_fit_score || 0,
             recommendation: scorecard.recommendation || 'Maybe',
             ai_summary: scorecard.ai_summary || '',
+            behavioral_analysis: scorecard.behavioral_analysis || {},
           });
         } catch {
           console.error('Failed to parse scoring response:', rawContent);

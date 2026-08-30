@@ -13,8 +13,11 @@
     "@supabase/supabase-js": "^2.99.1",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
+    "pdf-parse": "^1.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "recharts": "^3.8.0",
+    "resend": "^6.9.4"
   },
   "devDependencies": {
     "@types/node": "^20",

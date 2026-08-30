@@ -64,9 +64,10 @@
 
 .videoPlayer {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .videoPlaceholder {
@@ -75,10 +76,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  gap: var(--space-md);
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .videoPlaceholder span {
@@ -87,23 +89,24 @@
 }
 
 .playIcon {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   color: white;
-  background: var(--color-primary-glow);
-  border: 2px solid var(--color-primary);
+  background: var(--color-primary);
   border-radius: var(--radius-full);
+  box-shadow: 0 0 0 8px var(--color-primary-glow), var(--shadow-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-slow);
+  animation: pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
 
 .playIcon:hover {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-glow);
+  transform: scale(1.05);
+  box-shadow: 0 0 0 12px rgba(37, 99, 235, 0.2), var(--shadow-lg);
 }
 
 .sectionTitle {
@@ -118,9 +121,16 @@
 
 .transcriptSection {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.transcriptSection:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .transcriptList {
@@ -165,9 +175,18 @@
 .metricsCard,
 .behaviorCard {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.scoreCard:hover,
+.metricsCard:hover,
+.behaviorCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .scoreCenter {
@@ -182,33 +201,34 @@
   gap: var(--space-md);
 }
 
-.metricItem {}
-
 .metricHeader {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-sm);
 }
 
 .metricScore {
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
 }
 
 .metricBar {
-  height: 6px;
-  background: var(--bg-elevated);
+  height: 10px;
+  background: #f1f5f9;
   border-radius: var(--radius-full);
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .metricFill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  background: linear-gradient(90deg, #3b82f6, #ec4899);
   border-radius: var(--radius-full);
-  transition: width 1s ease;
+  transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.1);
 }
 
 .tagList {
@@ -239,10 +259,17 @@
 
 .recommendationCard {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
   text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.recommendationCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 @media (max-width: 1024px) {

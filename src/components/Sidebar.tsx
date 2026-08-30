@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -10,6 +11,8 @@ import {
   Settings,
   LogOut,
   Zap,
+  Menu,
+  ChevronLeft
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
@@ -22,19 +25,38 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    // Dynamically update the global CSS variable for sidebar width
+    if (isCollapsed) {
+      document.documentElement.style.setProperty('--sidebar-width', '80px');
+    } else {
+      document.documentElement.style.setProperty('--sidebar-width', '260px');
+    }
+    // Cleanup on unmount (optional but good practice)
+    return () => {
+      document.documentElement.style.setProperty('--sidebar-width', '260px');
+    };
+  }, [isCollapsed]);
 
   return (
-    <aside className={styles.sidebar}>
+    <aside className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
       <div className={styles.logo}>
-        <div className={styles.logoIcon}>
-          <Zap size={22} />
+        <div className={styles.logoContent}>
+          <div className={styles.logoIcon}>
+            <Zap size={22} />
+          </div>
+          {!isCollapsed && <span className={styles.logoText}>HireAI</span>}
         </div>
-        <span className={styles.logoText}>HireAI</span>
+        <button className={styles.toggleBtn} onClick={() => setIsCollapsed(!isCollapsed)}>
+          {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+        </button>
       </div>
 
       <nav className={styles.nav}>
         <div className={styles.navSection}>
-          <span className={styles.navSectionLabel}>Main</span>
+          {!isCollapsed && <span className={styles.navSectionLabel}>Main</span>}
           {navItems.map((item) => {
             const isActive =
               pathname === item.href ||
@@ -46,7 +68,7 @@ export default function Sidebar() {
                 className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
               >
                 <item.icon size={18} />
-                <span>{item.label}</span>
+                {!isCollapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
@@ -56,12 +78,14 @@ export default function Sidebar() {
       <div className={styles.footer}>
         <div className={styles.userInfo}>
           <div className={styles.avatar}>HR</div>
-          <div className={styles.userDetails}>
-            <span className={styles.userName}>Admin User</span>
-            <span className={styles.userRole}>Recruiter</span>
-          </div>
+          {!isCollapsed && (
+            <div className={styles.userDetails}>
+              <span className={styles.userName}>Admin User</span>
+              <span className={styles.userRole}>Recruiter</span>
+            </div>
+          )}
         </div>
-        <Link href="/" className={styles.logoutBtn}>
+        <Link href="/" className={styles.logoutBtn} title="Log Out">
           <LogOut size={16} />
         </Link>
       </div>

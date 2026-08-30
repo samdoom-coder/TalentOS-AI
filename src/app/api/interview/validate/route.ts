@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // Find interview by token
     const { data: interview, error: intError } = await supabase
       .from('interviews')
-      .select('*, candidates(*, jobs(*, ai_personas(*)))')
+      .select('*, candidates(*, jobs(*, ai_personas(*)), resume_screenings(*))')
       .eq('join_token', token)
       .single();
 
@@ -33,6 +33,29 @@ export async function POST(req: NextRequest) {
     const job = candidate?.jobs;
     const persona = job?.ai_personas;
 
+    // Extract resume context
+    const screening = Array.isArray(candidate?.resume_screenings) && candidate.resume_screenings.length > 0 
+      ? candidate.resume_screenings[0] 
+      : (candidate?.resume_screenings && !Array.isArray(candidate.resume_screenings) ? candidate.resume_screenings : null);
+    
+    let resumeContext: string | null = null;
+    if (screening && (screening.summary || screening.identified_skills?.length > 0)) {
+      resumeContext = `Candidate Background Summary: ${screening.summary || 'None provided'}\nIdentified Skills: ${(screening.identified_skills || []).join(', ')}\nMissing Skills: ${(screening.missing_skills || []).join(', ')}`;
+    }
+
+    // Fetch company settings
+    let companyName = 'HireAI';
+    let strictness = 'Normal';
+    if (job?.user_id) {
+      const { data: settings } = await supabase
+        .from('company_settings')
+        .select('company_name, strictness_level')
+        .eq('user_id', job.user_id)
+        .single();
+      if (settings?.company_name) companyName = settings.company_name;
+      if (settings?.strictness_level) strictness = settings.strictness_level;
+    }
+
     return NextResponse.json({
       interviewId: interview.id,
       candidate: {
@@ -46,9 +69,14 @@ export async function POST(req: NextRequest) {
       persona: {
         name: persona?.name || 'AI Interviewer',
         role: persona?.role || 'Interviewer',
-        color: persona?.color || '#6366f1',
+        color: persona?.color || '#2563eb',
         systemPrompt: persona?.system_prompt || null,
       },
+      company: {
+        name: companyName,
+        strictness: strictness
+      },
+      resumeContext
     });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

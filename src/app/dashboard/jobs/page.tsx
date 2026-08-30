@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Users, Calendar, Copy, Check, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import type { Job } from '@/lib/types';
+import type { Job, AiPersona } from '@/lib/types';
 import styles from './page.module.css';
 
 export default function JobsPage() {
@@ -16,20 +16,29 @@ export default function JobsPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [newPersonaId, setNewPersonaId] = useState<string>('');
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [personas, setPersonas] = useState<AiPersona[]>([]);
 
-  const fetchJobs = async () => {
-    const { data } = await supabase
+  const fetchData = async () => {
+    const { data: jobsData } = await supabase
       .from('jobs')
       .select('*, candidates(count)')
       .order('created_at', { ascending: false });
-    setJobs(data || []);
+    setJobs(jobsData || []);
+
+    const { data: personasData } = await supabase
+      .from('ai_personas')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setPersonas(personasData || []);
+
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchJobs();
+    fetchData();
   }, []);
 
   const handleCreateJob = async (e: React.FormEvent) => {
@@ -43,15 +52,17 @@ export default function JobsPage() {
       title: newTitle,
       description: newDesc,
       location: newLocation,
+      ai_persona_id: newPersonaId || null,
       status: 'Active',
     });
 
     setNewTitle('');
     setNewDesc('');
     setNewLocation('');
+    setNewPersonaId('');
     setShowCreate(false);
     setCreating(false);
-    fetchJobs();
+    fetchData();
   };
 
   const copyLink = (jobId: string) => {
@@ -95,6 +106,15 @@ export default function JobsPage() {
               <div className="input-group">
                 <label className="input-label">Job Description</label>
                 <textarea className={`input ${styles.textarea}`} placeholder="Describe the role, responsibilities, and ideal candidate..." value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={5} />
+              </div>
+              <div className="input-group">
+                <label className="input-label">AI Interviewer Persona (Optional)</label>
+                <select className="input" value={newPersonaId} onChange={e => setNewPersonaId(e.target.value)}>
+                  <option value="">Default AI Interviewer</option>
+                  {personas.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} {p.role ? `- ${p.role}` : ''}</option>
+                  ))}
+                </select>
               </div>
               <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={creating}>
                 {creating ? 'Creating...' : 'Create Job'}

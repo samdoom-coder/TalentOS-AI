@@ -8,4 +8,5 @@
   flex: 1;
   padding: var(--space-xl);
   overflow-y: auto;
+  transition: margin-left var(--transition-base);
 }

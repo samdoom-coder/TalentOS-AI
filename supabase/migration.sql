@@ -18,7 +18,7 @@ CREATE TABLE ai_personas (
   voice_id TEXT,
   avatar_url TEXT,
   system_prompt TEXT,
-  color TEXT DEFAULT '#6366f1',
+  color TEXT DEFAULT '#0000ffff',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

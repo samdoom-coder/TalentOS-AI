@@ -11,6 +11,7 @@ export default function ApplyPage() {
   const { jobId } = useParams();
   const supabase = createClient();
   const [job, setJob] = useState<Job | null>(null);
+  const [companyName, setCompanyName] = useState('HireAI');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -26,6 +27,19 @@ export default function ApplyPage() {
     async function fetchJob() {
       const { data } = await supabase.from('jobs').select('*').eq('id', jobId).eq('status', 'Active').single();
       setJob(data);
+
+      if (data?.user_id) {
+        const { data: companyData } = await supabase
+          .from('company_settings')
+          .select('company_name')
+          .eq('user_id', data.user_id)
+          .single();
+        
+        if (companyData?.company_name) {
+          setCompanyName(companyData.company_name);
+        }
+      }
+
       setLoading(false);
     }
     fetchJob();
@@ -46,18 +60,23 @@ export default function ApplyPage() {
     try {
       let resumeUrl = null;
 
-      // Upload resume to Supabase Storage (if configured)
+      // Upload resume via server API (uses service role key to bypass storage RLS)
       if (file) {
-        const filePath = `${jobId}/${Date.now()}_${file.name}`;
-        const { error: uploadError } = await supabase.storage.from('resumes').upload(filePath, file);
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(filePath);
-          resumeUrl = urlData.publicUrl;
+        const uploadForm = new FormData();
+        uploadForm.append('jobId', jobId as string);
+        uploadForm.append('resume', file);
+        try {
+          const uploadRes = await fetch('/api/apply', { method: 'POST', body: uploadForm });
+          const uploadData = await uploadRes.json();
+          resumeUrl = uploadData.resumeUrl || null;
+          if (!resumeUrl) console.warn('Resume upload returned no URL:', uploadData);
+        } catch (uploadErr) {
+          console.error('Resume upload error:', uploadErr);
         }
       }
 
-      // Insert candidate into database
-      const { error: insertError } = await supabase.from('candidates').insert({
+      // Insert candidate
+      const { data: insertedCandidate, error: insertError } = await supabase.from('candidates').insert({
         job_id: jobId,
         first_name: firstName,
         last_name: lastName,
@@ -65,9 +84,43 @@ export default function ApplyPage() {
         linkedin_url: linkedin || null,
         resume_url: resumeUrl,
         status: 'Applied',
-      });
+      }).select('id').single();
 
       if (insertError) throw insertError;
+
+      // Trigger AI resume screening and await result
+      if (insertedCandidate?.id) {
+        const screenRes = await fetch('/api/interview/screen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidateId: insertedCandidate.id, jobId }),
+        });
+
+        if (!screenRes.ok) {
+          // If AI screening fails, log the error but don't block the candidate from being saved
+          console.warn('AI screening failed (non-blocking):', await screenRes.text());
+        } else {
+          const screenData = await screenRes.json();
+          if (screenData.screening?.status === 'Shortlisted') {
+            // Generate the interview link by triggering the invite endpoint
+            const inviteRes = await fetch('/api/interview/invite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jobId }),
+            });
+            
+            if (inviteRes.ok) {
+              const inviteData = await inviteRes.json();
+              // Find the invite link for this specific candidate
+              const myInvite = inviteData.results?.find((r: any) => r.email === email);
+              if (myInvite && myInvite.link) {
+                window.location.href = myInvite.link;
+                return; // Stop execution to let the redirect happen
+              }
+            }
+          }
+        }
+      }
 
       setSubmitted(true);
     } catch (err: unknown) {
@@ -115,9 +168,10 @@ export default function ApplyPage() {
     <div className={styles.container}>
       <div className={styles.mainCard}>
         <div className={styles.jobHeader}>
-          <div className={styles.companyLogo}>{job.title.charAt(0)}</div>
+          <div className={styles.companyLogo}>{companyName.charAt(0).toUpperCase()}</div>
           <div>
             <h1 className={styles.jobTitle}>{job.title}</h1>
+            <p className={styles.companyName}>{companyName}</p>
           </div>
         </div>
 
@@ -188,7 +242,7 @@ export default function ApplyPage() {
         </form>
       </div>
 
-      <p className={styles.poweredBy}>Powered by <strong>HireAI</strong></p>
+      <p className={styles.poweredBy}>Powered by <strong>{companyName}</strong></p>
     </div>
   );
 }

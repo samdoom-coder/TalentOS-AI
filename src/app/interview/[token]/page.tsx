@@ -18,6 +18,8 @@ interface InterviewData {
   candidate: { name: string; email: string };
   job: { title: string; description: string };
   persona: { name: string; role: string; color: string; systemPrompt: string | null };
+  company: { name: string; strictness: string };
+  resumeContext?: string | null;
 }
 
 type InterviewState = 'loading' | 'error' | 'ready' | 'active' | 'listening' | 'processing' | 'speaking' | 'completed';
@@ -212,6 +214,9 @@ export default function InterviewRoomPage() {
             systemPrompt: data?.persona.systemPrompt,
             jobTitle: data?.job.title,
             candidateName: data?.candidate.name,
+            companyName: data?.company.name,
+            strictnessLevel: data?.company.strictness,
+            resumeContext: data?.resumeContext,
           }),
         });
         const json = await res.json();

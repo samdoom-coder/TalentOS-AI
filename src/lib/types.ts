@@ -46,7 +46,36 @@ export interface ResumeScreening {
   identified_skills: string[];
   missing_skills: string[];
   summary: string | null;
+  cv_analytics?: CVAnalytics | null;
   processed_at: string;
+}
+
+export interface CVAnalytics {
+  document_professionalism?: {
+    attention_to_detail: { score: number; reasoning: string } | number;
+    clarity_and_completeness: { score: number; reasoning: string } | number;
+  };
+  cv_red_flags?: {
+    timeline_and_tenure: { flagged: boolean; reasoning: string } | boolean;
+    experience_and_representation: { flagged: boolean; reasoning: string } | boolean;
+    other_red_flags: { flagged: boolean; reasoning: string } | boolean;
+  };
+  key_attributes?: {
+    experience_model: { value: string; reasoning: string } | string;
+    leadership_potential: { score: number; reasoning: string } | number;
+    entrepreneurial_spirit: { score: number; reasoning: string } | number;
+    estimated_career_potential: { score: number; reasoning: string } | number;
+  };
+  professional_profile?: {
+    strategic_focus: { score: number; reasoning: string } | number;
+    learning_velocity: { score: number; reasoning: string } | number;
+    career_progression: { score: number; reasoning: string } | number;
+    drive_and_initiative: { score: number; reasoning: string } | number;
+    intellectual_ability: { score: number; reasoning: string } | number;
+    managerial_experience: { score: number; reasoning: string } | number;
+    recognized_accomplishments: { score: number; reasoning: string } | number;
+    original_and_creative_thinking: { score: number; reasoning: string } | number;
+  };
 }
 
 export interface Interview {
@@ -76,7 +105,26 @@ export interface InterviewScorecard {
   communication_score: number;
   problem_solving_score: number;
   culture_fit_score: number;
-  behavioral_analysis: Record<string, string>;
+  behavioral_analysis: {
+    communication_skills?: {
+      grammar: number;
+      comprehension: number;
+      fluency: number;
+      vocabulary_sufficiency: number;
+      coherence: number;
+    };
+    cognitive_insights?: {
+      logical_reasoning: number;
+      critical_thinking: number;
+      problem_solving: number;
+      big_picture_thinking: number;
+      insightfulness: number;
+      clarity: number;
+      decision_making: number;
+      intellectual_self_awareness: number;
+    };
+    [key: string]: any;
+  };
   recommendation: 'Strong_Hire' | 'Hire' | 'Maybe' | 'Reject';
   ai_summary: string | null;
   created_at: string;

@@ -1,0 +1,154 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.cardHeader {
+  margin-bottom: 20px;
+}
+
+.cardTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  margin: 0 0 4px 0;
+}
+
+.cardSubtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+}
+
+.rowList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rowContainer {
+  display: flex;
+  flex-direction: column;
+  background: #fdfdfd;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.rowContainer.rowOpen {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.row:hover {
+  background: #f9fafb;
+}
+
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary, #374151);
+}
+
+.rowLabel svg {
+  color: var(--text-muted, #9ca3af);
+}
+
+.rowRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chevron {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rowReasoning {
+  padding: 0 16px 16px 42px;
+}
+
+.rowReasoning p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #4b5563;
+}
+
+/* Badge Styles */
+.scoreBadge {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.scoreHigh {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.scoreMedium {
+  background: rgba(234, 179, 8, 0.1);
+  color: #ca8a04;
+}
+
+.scoreLow {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.flagBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.flagGood {
+  color: #16a34a;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.flagBad {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.tagBadge {
+  font-weight: 500;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  background: #f3f4f6;
+  color: #4b5563;
+  border-radius: 20px;
+}

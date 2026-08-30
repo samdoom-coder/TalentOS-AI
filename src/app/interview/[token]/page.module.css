@@ -5,18 +5,18 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-xl);
-  background: linear-gradient(160deg, var(--bg-base) 0%, #0d0d25 50%, #0a1628 100%);
+  background: var(--bg-base);
 }
 
 /* Error & Loading */
 .errorCard, .completedCard, .readyCard {
   max-width: 480px;
   text-align: center;
-  background: rgba(17, 17, 40, 0.8);
-  backdrop-filter: blur(24px);
-  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-2xl);
+  box-shadow: var(--shadow-lg);
   animation: fadeIn 0.5s ease;
 }
 

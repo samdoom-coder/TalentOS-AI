@@ -1,25 +1,25 @@
 .card {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-md);
-  transition: all var(--transition-base);
-  animation: fadeIn 0.4s ease forwards;
+  align-items: center;
+  gap: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-slow);
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .card:hover {
-  border-color: var(--border-default);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
 }
 
 .iconWrap {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-md);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,11 +60,12 @@
 }
 
 .value {
-  font-size: 1.75rem;
+  font-size: 2rem;
   font-weight: 800;
   color: var(--text-primary);
-  line-height: 1.2;
-  margin-top: 2px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
 }
 
 .trend {

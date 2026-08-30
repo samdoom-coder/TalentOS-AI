@@ -5,18 +5,17 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-xl);
-  background: linear-gradient(160deg, var(--bg-base) 0%, #0d0d25 50%, #0a1628 100%);
+  background: var(--bg-base);
 }
 
 .mainCard {
   width: 100%;
   max-width: 640px;
-  background: rgba(17, 17, 40, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-2xl);
+  box-shadow: var(--shadow-lg);
   animation: fadeIn 0.5s ease forwards;
 }
 
@@ -31,7 +30,7 @@
   width: 48px;
   height: 48px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -39,6 +38,7 @@
   font-size: 1rem;
   color: white;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .jobTitle {
@@ -193,22 +193,18 @@
 }
 
 .poweredBy strong {
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-accent-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary-dark);
 }
 
 /* Success State */
 .successCard {
   text-align: center;
   max-width: 480px;
-  background: rgba(17, 17, 40, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-3xl);
+  box-shadow: var(--shadow-lg);
   animation: fadeIn 0.5s ease forwards;
 }
 

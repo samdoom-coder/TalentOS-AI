@@ -10,14 +10,30 @@
   flex-direction: column;
   z-index: 100;
   overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--transition-base);
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  justify-content: space-between;
   padding: var(--space-lg);
   border-bottom: 1px solid var(--border-subtle);
+  min-height: 85px;
+}
+
+.collapsed .logo {
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-md) var(--space-sm);
+  gap: var(--space-sm);
+}
+
+.logoContent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .logoIcon {
@@ -35,10 +51,26 @@
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-accent-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+.toggleBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.toggleBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .nav {
@@ -73,6 +105,12 @@
   transition: all var(--transition-fast);
   text-decoration: none;
   margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.collapsed .navItem {
+  justify-content: center;
+  padding: 10px;
 }
 
 .navItem:hover {
@@ -102,6 +140,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  overflow: hidden;
+}
+
+.collapsed .footer {
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
 .avatar {
@@ -120,6 +165,7 @@
 .userDetails {
   display: flex;
   flex-direction: column;
+  white-space: nowrap;
 }
 
 .userName {

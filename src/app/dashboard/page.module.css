@@ -40,9 +40,10 @@
 
 .activitySection {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-sm);
 }
 
 .activityList {
@@ -55,12 +56,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  transition: background var(--transition-fast);
 }
 
-.activityItem:last-child {
-  border-bottom: none;
+.activityItem:hover {
+  background: var(--bg-hover);
 }
 
 .activityIcon {
@@ -116,10 +118,11 @@
 
 .quickActions {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
   align-self: flex-start;
+  box-shadow: var(--shadow-sm);
 }
 
 .actionGrid {
@@ -132,21 +135,22 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
 }
 
 .actionCard:hover {
-  border-color: var(--border-accent);
-  color: var(--color-primary-light);
-  transform: translateX(4px);
+  background: var(--bg-card);
+  color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 @media (max-width: 768px) {
@@ -156,4 +160,19 @@
   .sections {
     grid-template-columns: 1fr;
   }
+}
+
+.chartSection {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.chartContainer {
+  height: 300px;
+  width: 100%;
+  margin-top: var(--space-md);
 }

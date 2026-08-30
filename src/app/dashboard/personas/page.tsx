@@ -17,6 +17,17 @@ export default function PersonasPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setName('');
+    setRole('');
+    setDescription('');
+    setSystemPrompt('');
+    setColor('#6366f1');
+    setShowCreate(false);
+  };
 
   const fetchPersonas = async () => {
     const { data } = await supabase.from('ai_personas').select('*').order('created_at', { ascending: false });
@@ -28,25 +39,44 @@ export default function PersonasPage() {
     fetchPersonas();
   }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from('ai_personas').insert({
-      user_id: user.id,
-      name,
-      role,
-      description,
-      system_prompt: systemPrompt,
-      color,
-    });
+    if (editingId) {
+      await supabase.from('ai_personas').update({
+        name,
+        role,
+        description,
+        system_prompt: systemPrompt,
+        color,
+      }).eq('id', editingId);
+    } else {
+      await supabase.from('ai_personas').insert({
+        user_id: user.id,
+        name,
+        role,
+        description,
+        system_prompt: systemPrompt,
+        color,
+      });
+    }
 
-    setName(''); setRole(''); setDescription(''); setSystemPrompt(''); setColor('#6366f1');
-    setShowCreate(false);
+    resetForm();
     setCreating(false);
     fetchPersonas();
+  };
+
+  const handleEditClick = (persona: AiPersona) => {
+    setEditingId(persona.id);
+    setName(persona.name);
+    setRole(persona.role);
+    setDescription(persona.description || '');
+    setSystemPrompt(persona.system_prompt || '');
+    setColor(persona.color || '#6366f1');
+    setShowCreate(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -63,20 +93,20 @@ export default function PersonasPage() {
           <h1 className={styles.title}>AI Personas</h1>
           <p className={styles.subtitle}>Configure AI interviewers with unique personalities.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="btn btn-primary" onClick={() => { resetForm(); setShowCreate(true); }}>
           <Plus size={18} /> Create New Persona
         </button>
       </div>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       {showCreate && (
-        <div className={styles.modal} onClick={() => setShowCreate(false)}>
+        <div className={styles.modal} onClick={resetForm}>
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>Create AI Persona</h2>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowCreate(false)}><X size={16} /></button>
+              <h2>{editingId ? 'Edit AI Persona' : 'Create AI Persona'}</h2>
+              <button className="btn btn-ghost btn-sm" onClick={resetForm}><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleSubmit}>
               <div className="input-group">
                 <label className="input-label">Persona Name *</label>
                 <input className="input" placeholder="e.g. Sarah Chen" value={name} onChange={e => setName(e.target.value)} required />
@@ -98,7 +128,7 @@ export default function PersonasPage() {
                 <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: '60px', height: '36px', cursor: 'pointer' }} />
               </div>
               <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={creating}>
-                {creating ? 'Creating...' : 'Create Persona'}
+                {creating ? 'Saving...' : (editingId ? 'Save Changes' : 'Create Persona')}
               </button>
             </form>
           </div>
@@ -126,7 +156,7 @@ export default function PersonasPage() {
               </div>
               <div className={styles.cardActions}>
                 <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(persona.id)}>Delete</button>
-                <button className="btn btn-secondary btn-sm">Edit</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => handleEditClick(persona)}>Edit</button>
               </div>
             </div>
           ))
