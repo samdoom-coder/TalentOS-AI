@@ -1,0 +1,51 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  position: relative;
+}
+
+.svg {
+  transform: rotate(-90deg);
+}
+
+.progress {
+  transition: stroke-dashoffset 1s ease;
+}
+
+.inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 2px;
+}
+
+.score {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.total {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: calc(-1 * var(--space-sm));
+}
