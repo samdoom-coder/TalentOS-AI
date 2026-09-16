@@ -1,0 +1,1079 @@
+// TalentOS AI — Prisma schema (SQLite for local dev).
+// Production: use schema.postgres.prisma with provider="postgresql" (identical models).
+// All tenant-scoped models carry organizationId. Roles are Strings (RBAC in lib/auth/rbac.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  name          String
+  emailVerified Boolean  @default(false)
+  verifyToken   String?
+  resetToken    String?
+  resetExpires  DateTime?
+  imageUrl      String?
+  role          String   @default("candidate") // platform-level default; org memberships carry real RBAC
+  timezone      String   @default("UTC")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  memberships OrganizationMember[]
+  candidates  Candidate[]          @relation("UserCandidates")
+  auditLogs   AuditLog[]
+  feedback    CandidateFeedback[]
+  notifications Notification[]
+  apiKeys     ApiKey[]
+
+  @@index([email])
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  industry  String?
+  size      String?
+  website   String?
+  logoUrl   String?
+  settings  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  members        OrganizationMember[]
+  jobs           Job[]
+  candidates     Candidate[]
+  applications   Application[]
+  assessments    Assessment[]
+  interviews     Interview[]
+  roleplays      RoleplayScenario[]
+  showcases      Showcase[]
+  atsStages      AtsStage[]
+  messages       Message[]
+  files          StoredFile[]
+  aiRuns         AiRun[]
+  integrations   Integration[]
+  apiKeys        ApiKey[]
+  webhooks       Webhook[]
+  auditLogs      AuditLog[]
+  subscriptions  Subscription[]
+  usageRecords   UsageRecord[]
+  modelUsage     AiModelUsage[]
+  talentLists    TalentList[]
+  notifications  Notification[]
+  availability   AvailabilitySlot[]
+
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  role           String // owner | admin | recruiter | hiring_manager | interviewer | candidate
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ---------------- Jobs ----------------
+
+model Job {
+  id               String    @id @default(uuid())
+  organizationId   String
+  title            String
+  department       String?
+  location         String?
+  workMode         String    @default("onsite") // remote | hybrid | onsite
+  employmentType   String    @default("full_time")
+  salaryMin        Float?
+  salaryMax        Float?
+  salaryCurrency   String    @default("USD")
+  description      String
+  responsibilities String?
+  status           String    @default("draft") // draft | published | closed | archived
+  slug             String    @unique
+  publishedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requirements JobRequirement[]
+  questions    JobQuestion[]
+  applications Application[]
+  interviews   Interview[]
+  assessments  Assessment[]
+  screenings   ScreeningSession[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model JobRequirement {
+  id              String  @id @default(uuid())
+  jobId           String
+  category        String // skill | experience | education | certification | language | behavioral | technical | custom
+  label           String
+  detail          String?
+  importance      String  @default("important") // required | important | nice_to_have
+  isRequired      Boolean @default(false)
+  evaluationMethod String @default("resume") // resume | assessment | interview | roleplay | showcase
+  weight          Float   @default(10)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+model JobQuestion {
+  id        String  @id @default(uuid())
+  jobId     String
+  question  String
+  type      String  @default("short_answer")
+  required  Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+// ---------------- Candidates ----------------
+
+model Candidate {
+  id             String   @id @default(uuid())
+  organizationId String? // null = global talent profile not yet attached to an org
+  userId         String?
+  name           String
+  email          String
+  phone          String?
+  location       String?
+  title          String?
+  summary        String?
+  experienceYrs  Float?
+  portfolioUrl   String?
+  linkedinUrl    String?
+  githubUrl      String?
+  websiteUrl     String?
+  availability   String?
+  discoverable   Boolean  @default(false)
+  visibility     String   @default("recruiter_only") // public | recruiter_only | private
+  tags           String? // string[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?         @relation("UserCandidates", fields: [userId], references: [id])
+
+  skills     CandidateSkill[]
+  experience CandidateExperience[]
+  education  CandidateEducation[]
+  documents  CandidateDocument[]
+  applications Application[]
+  scores     CandidateScore[]
+  evidence   CandidateEvidence[]
+  consents   ConsentRecord[]
+  stageHistory CandidateStageHistory[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model CandidateSkill {
+  id          String @id @default(uuid())
+  candidateId String
+  skill       String
+  years       Float?
+  level       String?
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+}
+
+model CandidateExperience {
+  id          String    @id @default(uuid())
+  candidateId String
+  company     String
+  role        String
+  startDate   String?
+  endDate     String?
+  current     Boolean   @default(false)
+  description String?
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+}
+
+model CandidateEducation {
+  id          String @id @default(uuid())
+  candidateId String
+  school      String
+  degree      String?
+  field       String?
+  year        String?
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+}
+
+model CandidateDocument {
+  id          String   @id @default(uuid())
+  candidateId String
+  fileId      String?
+  kind        String   @default("resume") // resume | cover_letter | portfolio | other
+  fileName    String
+  fileUrl     String?
+  mimeType    String?
+  sizeBytes   Int?
+  createdAt   DateTime @default(now())
+
+  candidate Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  file      StoredFile? @relation(fields: [fileId], references: [id])
+  @@index([candidateId])
+}
+
+// ---------------- Applications / ATS ----------------
+
+model Application {
+  id             String   @id @default(uuid())
+  organizationId String
+  jobId          String
+  candidateId    String
+  stage          String   @default("applied")
+  status         String   @default("active") // active | hired | rejected | withdrawn
+  matchScore     Float?
+  source         String?
+  answers        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  events       ApplicationEvent[]
+  stageHistory ApplicationStageHistory[]
+  feedback     CandidateFeedback[]
+
+  @@unique([jobId, candidateId])
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([stage])
+  @@index([status])
+}
+
+model ApplicationEvent {
+  id            String   @id @default(uuid())
+  applicationId String
+  type          String
+  message       String?
+  actorId       String?
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId])
+}
+
+model ApplicationStageHistory {
+  id            String   @id @default(uuid())
+  applicationId String
+  fromStage     String?
+  toStage       String
+  actorId       String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId])
+}
+
+model AtsStage {
+  id             String @id @default(uuid())
+  organizationId String
+  name           String
+  slug           String
+  sortOrder      Int    @default(0)
+  isDefault      Boolean @default(false)
+  isTerminal     Boolean @default(false)
+  candidateFacing String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+}
+
+model CandidateStageHistory {
+  id          String   @id @default(uuid())
+  candidateId String
+  stage       String
+  actorId     String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+}
+
+// ---------------- Resumes ----------------
+
+model Resume {
+  id            String   @id @default(uuid())
+  candidateId   String?
+  applicationId String?
+  fileId        String
+  status        String   @default("queued") // queued | processing | completed | failed
+  error         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parsingResult ResumeParsingResult?
+  @@index([candidateId])
+  @@index([status])
+}
+
+model ResumeParsingResult {
+  id          String   @id @default(uuid())
+  resumeId    String   @unique
+  rawText     String?
+  structured  String?
+  skills      String?
+  experience  String?
+  education   String?
+  confidence  String?
+  provider    String?
+  model       String?
+  createdAt   DateTime @default(now())
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Screening ----------------
+
+model ScreeningSession {
+  id             String   @id @default(uuid())
+  jobId          String?
+  candidateId    String?
+  applicationId  String?
+  status         String   @default("pending")
+  score          Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  job Job? @relation(fields: [jobId], references: [id])
+  questions ScreeningQuestion[]
+  answers   ScreeningAnswer[]
+  scores    ScreeningScore[]
+}
+
+model ScreeningQuestion {
+  id        String @id @default(uuid())
+  sessionId String
+  question  String
+  kind      String @default("text")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model ScreeningAnswer {
+  id        String @id @default(uuid())
+  sessionId String
+  questionId String?
+  answer    String
+  createdAt DateTime @default(now())
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model ScreeningScore {
+  id        String @id @default(uuid())
+  sessionId String
+  criterion String
+  score     Float
+  evidence  String?
+  confidence String?
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Assessments ----------------
+
+model Assessment {
+  id             String   @id @default(uuid())
+  organizationId String
+  jobId          String?
+  title          String
+  description    String?
+  timeLimitMin   Int?
+  passingScore   Float?
+  maxAttempts    Int      @default(1)
+  randomize      Boolean  @default(false)
+  status         String   @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          Job?         @relation(fields: [jobId], references: [id])
+  sections     AssessmentSection[]
+  attempts     AssessmentAttempt[]
+
+  @@index([organizationId])
+}
+
+model AssessmentSection {
+  id           String @id @default(uuid())
+  assessmentId String
+  title        String
+  sortOrder    Int    @default(0)
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questions  AssessmentQuestion[]
+}
+
+model AssessmentQuestion {
+  id        String @id @default(uuid())
+  sectionId String
+  type      String // mcq | multi_select | true_false | short_answer | long_answer | coding | file_upload | scenario | video_response
+  prompt    String
+  options   String?
+  answerKey String?
+  points    Float  @default(1)
+  sortOrder Int    @default(0)
+
+  section AssessmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+}
+
+model AssessmentAttempt {
+  id             String    @id @default(uuid())
+  assessmentId   String
+  candidateId    String?
+  applicationId  String?
+  status         String    @default("started") // started | submitted | evaluated | expired
+  score          Float?
+  passed         Boolean?
+  startedAt      DateTime  @default(now())
+  submittedAt    DateTime?
+  timeSpentSec   Int?
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  answers    AssessmentAnswer[]
+  result     AssessmentResult?
+
+  @@index([assessmentId])
+}
+
+model AssessmentAnswer {
+  id        String @id @default(uuid())
+  attemptId String
+  questionId String
+  answer    String?
+  isCorrect Boolean?
+  points    Float?
+
+  attempt AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model AssessmentResult {
+  id        String   @id @default(uuid())
+  attemptId String   @unique
+  score     Float
+  breakdown String?
+  feedback  String?
+  aiModel   String?
+  createdAt DateTime @default(now())
+
+  attempt AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Coding ----------------
+
+model CodingAssessment {
+  id             String @id @default(uuid())
+  assessmentId   String?
+  title          String
+  language       String @default("javascript")
+  timeLimitMin   Int?
+  createdAt      DateTime @default(now())
+
+  questions CodingQuestion[]
+}
+
+model CodingQuestion {
+  id                 String @id @default(uuid())
+  codingAssessmentId String
+  title              String
+  prompt             String
+  language           String @default("javascript")
+  starterCode        String?
+  publicTests        String?
+  hiddenTests        String?
+  timeLimitMs        Int    @default(2000)
+  memoryLimitMb      Int    @default(128)
+
+  codingAssessment CodingAssessment @relation(fields: [codingAssessmentId], references: [id], onDelete: Cascade)
+  submissions      CodingSubmission[]
+}
+
+model CodingSubmission {
+  id               String   @id @default(uuid())
+  codingQuestionId String
+  candidateId      String?
+  attemptId        String?
+  code             String
+  language         String
+  status           String   @default("queued")
+  stdout           String?
+  stderr           String?
+  passedCount      Int?
+  totalCount       Int?
+  createdAt        DateTime @default(now())
+
+  question CodingQuestion @relation(fields: [codingQuestionId], references: [id], onDelete: Cascade)
+  results  CodingTestResult[]
+}
+
+model CodingTestResult {
+  id           String  @id @default(uuid())
+  submissionId String
+  name         String
+  passed       Boolean
+  output       String?
+  hidden       Boolean @default(false)
+
+  submission CodingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Interviews ----------------
+
+model Interview {
+  id             String   @id @default(uuid())
+  organizationId String
+  jobId          String?
+  title          String
+  mode           String   @default("text") // text | voice
+  durationMin    Int      @default(15)
+  difficulty     String   @default("medium")
+  topics         String?
+  questionCount  Int      @default(5)
+  criteria       String?
+  status         String   @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          Job?         @relation(fields: [jobId], references: [id])
+  questions    InterviewQuestion[]
+  sessions     InterviewSession[]
+
+  @@index([organizationId])
+}
+
+model InterviewQuestion {
+  id          String @id @default(uuid())
+  interviewId String
+  prompt      String
+  topic       String?
+  sortOrder   Int    @default(0)
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model InterviewSession {
+  id             String    @id @default(uuid())
+  interviewId    String
+  candidateId    String?
+  applicationId  String?
+  status         String    @default("created") // created | in_progress | completed | evaluated | failed
+  consentAt      DateTime?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  summary        String?
+  createdAt      DateTime  @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  transcripts InterviewTranscript[]
+  evaluations InterviewEvaluation[]
+
+  @@index([interviewId])
+}
+
+model InterviewTranscript {
+  id        String   @id @default(uuid())
+  sessionId String
+  speaker   String // ai | candidate | system
+  message   String
+  questionId String?
+  confidence Float?
+  createdAt DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@index([sessionId])
+}
+
+model InterviewEvaluation {
+  id              String   @id @default(uuid())
+  sessionId       String
+  criterion       String
+  score           Float
+  evidence        String?
+  confidence      String?
+  reasoningSummary String?
+  model           String?
+  createdAt       DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Roleplay ----------------
+
+model RoleplayScenario {
+  id             String @id @default(uuid())
+  organizationId String
+  title          String
+  persona        String
+  scenario       String
+  difficulty     String @default("medium")
+  objectives     String?
+  criteria       String?
+  durationMin    Int    @default(10)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     RoleplaySession[]
+}
+
+model RoleplaySession {
+  id             String    @id @default(uuid())
+  scenarioId     String
+  candidateId    String?
+  applicationId  String?
+  status         String    @default("created")
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+
+  scenario RoleplayScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  messages RoleplayMessage[]
+  evaluations RoleplayEvaluation[]
+}
+
+model RoleplayMessage {
+  id        String   @id @default(uuid())
+  sessionId String
+  speaker   String
+  message   String
+  createdAt DateTime @default(now())
+
+  session RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model RoleplayEvaluation {
+  id        String   @id @default(uuid())
+  sessionId String
+  criterion String
+  score     Float
+  evidence  String?
+  createdAt DateTime @default(now())
+
+  session RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Showcase ----------------
+
+model Showcase {
+  id             String @id @default(uuid())
+  organizationId String
+  jobId          String?
+  title          String
+  instructions   String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     ShowcaseSession[]
+}
+
+model ShowcaseSession {
+  id             String    @id @default(uuid())
+  showcaseId     String
+  candidateId    String?
+  applicationId  String?
+  projectUrl     String?
+  description    String?
+  recordingId    String?
+  transcript     String?
+  status         String    @default("created")
+  createdAt      DateTime  @default(now())
+
+  showcase Showcase @relation(fields: [showcaseId], references: [id], onDelete: Cascade)
+  evaluations ShowcaseEvaluation[]
+}
+
+model ShowcaseEvaluation {
+  id        String   @id @default(uuid())
+  sessionId String
+  criterion String
+  score     Float
+  evidence  String?
+  createdAt DateTime @default(now())
+
+  session ShowcaseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Intelligence ----------------
+
+model CandidateScore {
+  id          String   @id @default(uuid())
+  candidateId String
+  jobId       String?
+  scope       String   // resume | assessment | interview | roleplay | showcase | overall
+  score       Float
+  confidence  String?
+  model       String?
+  version     String?
+  createdAt   DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+  @@index([jobId])
+}
+
+model CandidateEvidence {
+  id          String @id @default(uuid())
+  candidateId String
+  jobId       String?
+  requirement String
+  evidence    String?
+  assessment  String?
+  confidence  String?
+  source      String?
+  score       Float?
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  @@index([candidateId])
+}
+
+model CandidateFeedback {
+  id            String   @id @default(uuid())
+  candidateId   String?
+  applicationId String?
+  authorId      String
+  body          String
+  rating        Int?
+  createdAt     DateTime @default(now())
+
+  author      User         @relation(fields: [authorId], references: [id])
+  application Application? @relation(fields: [applicationId], references: [id])
+}
+
+// ---------------- Comms ----------------
+
+model Message {
+  id             String   @id @default(uuid())
+  organizationId String
+  candidateId    String?
+  applicationId  String?
+  channel        String   @default("email") // email | in_app | sms | whatsapp | slack
+  direction      String   @default("outbound")
+  subject        String?
+  body           String
+  template       String?
+  status         String   @default("queued")
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+  @@index([candidateId])
+}
+
+model EmailEvent {
+  id        String   @id @default(uuid())
+  messageId String?
+  type      String
+  metadata  String?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String?
+  userId         String
+  type           String
+  title          String
+  body           String?
+  read           Boolean   @default(false)
+  link           String?
+  createdAt      DateTime  @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+// ---------------- Files ----------------
+
+model StoredFile {
+  id             String   @id @default(uuid())
+  organizationId String?
+  key            String   @unique
+  fileName       String
+  mimeType       String?
+  sizeBytes      Int?
+  provider       String   @default("local")
+  url            String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  documents    CandidateDocument[]
+  processingJobs FileProcessingJob[]
+}
+
+model FileProcessingJob {
+  id        String   @id @default(uuid())
+  fileId    String
+  kind      String
+  status    String   @default("queued")
+  attempts  Int      @default(0)
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  file StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- AI ----------------
+
+model AiRun {
+  id             String   @id @default(uuid())
+  organizationId String?
+  task           String
+  provider       String
+  model          String
+  promptVersion  String?
+  inputRef       String?
+  output         String?
+  tokensIn       Int?
+  tokensOut      Int?
+  latencyMs      Int?
+  costUsd        Float?
+  status         String   @default("succeeded")
+  error          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  @@index([task])
+  @@index([createdAt])
+}
+
+model AiPrompt {
+  id               String @id @default(uuid())
+  name             String
+  version          String
+  description      String?
+  systemPrompt     String
+  outputSchema     String?
+  modelPreferences String?
+  active           Boolean @default(true)
+  createdAt        DateTime @default(now())
+
+  @@unique([name, version])
+}
+
+model AiEvaluation {
+  id         String   @id @default(uuid())
+  runId      String?
+  scope      String
+  subjectId  String
+  output     String?
+  confidence String?
+  createdAt  DateTime @default(now())
+}
+
+model AiModelUsage {
+  id             String   @id @default(uuid())
+  organizationId String?
+  provider       String
+  model          String
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  costUsd        Float    @default(0)
+  day            String
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+}
+
+// ---------------- Platform ----------------
+
+model Integration {
+  id             String @id @default(uuid())
+  organizationId String
+  type           String
+  config         String?
+  enabled        Boolean @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id             String    @id @default(uuid())
+  organizationId String?
+  userId         String?
+  name           String
+  keyHash        String    @unique
+  keyPrefix      String
+  scopes         String?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+}
+
+model Webhook {
+  id             String @id @default(uuid())
+  organizationId String
+  url            String
+  events         String?
+  secret         String?
+  enabled        Boolean @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id        String   @id @default(uuid())
+  webhookId String
+  event     String
+  payload   String?
+  status    String   @default("queued")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String?
+  actorId        String?
+  action         String
+  resource       String?
+  resourceId     String?
+  metadata       String?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  actor        User?         @relation(fields: [actorId], references: [id])
+  @@index([organizationId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id             String   @id @default(uuid())
+  organizationId String
+  plan           String   @default("free")
+  status         String   @default("active")
+  seats          Int      @default(1)
+  currentPeriodEnd DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model UsageRecord {
+  id             String   @id @default(uuid())
+  organizationId String
+  metric         String
+  quantity       Float
+  day            String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+}
+
+model AvailabilitySlot {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  start          DateTime
+  end            DateTime
+  timezone       String   @default("UTC")
+  bookedBy       String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId])
+}
+
+model TalentList {
+  id             String @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      TalentListMember[]
+}
+
+model TalentListMember {
+  id          String @id @default(uuid())
+  listId      String
+  candidateId String
+  note        String?
+  createdAt   DateTime @default(now())
+
+  list TalentList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  @@unique([listId, candidateId])
+}
+
+model SavedSearch {
+  id             String @id @default(uuid())
+  organizationId String
+  userId         String
+  name           String
+  filters        String
+  createdAt      DateTime @default(now())
+}
+
+model ConsentRecord {
+  id          String   @id @default(uuid())
+  candidateId String
+  type        String
+  version     String   @default("v1")
+  granted     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
