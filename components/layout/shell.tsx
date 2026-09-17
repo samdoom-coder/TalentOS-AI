@@ -113,7 +113,7 @@ export function Topbar({ title, children }: { title: string; children?: React.Re
               if (e.key === "Enter" && q.trim()) router.push(`/candidates?q=${encodeURIComponent(q.trim())}`);
             }}
             placeholder="Search candidates…  (Ctrl/⌘ K)"
-            className="input pl-9"
+            className="input !pl-10"
             aria-label="Search candidates"
           />
         </div>
