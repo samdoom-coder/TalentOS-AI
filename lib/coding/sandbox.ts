@@ -71,14 +71,23 @@ export async function gradeSubmission(input: {
   publicTests: TestCase[];
   hiddenTests: TestCase[];
 }): Promise<RunResult> {
+  const all = [...input.publicTests.map((t) => ({ ...t, hidden: false })), ...input.hiddenTests.map((t) => ({ ...t, hidden: true }))];
+  // Production: isolated Judge0 when configured (all languages incl. JS).
+  if (process.env.EXECUTION_PROVIDER === "judge0" || (process.env.JUDGE0_URL && !["javascript", "typescript"].includes(input.language.toLowerCase()))) {
+    try {
+      const { runViaJudge0 } = await import("./judge0");
+      return runViaJudge0(input.language, input.code, all);
+    } catch (e) {
+      return { passed: false, error: e instanceof Error ? e.message : "Judge0 execution failed", results: [] };
+    }
+  }
   if (["javascript", "typescript"].includes(input.language.toLowerCase())) {
-    const all = [...input.publicTests.map((t) => ({ ...t, hidden: false })), ...input.hiddenTests.map((t) => ({ ...t, hidden: true }))];
     return runJavaScript(input.code, all);
   }
   // Non-JS languages: Judge0-ready stub — record for manual review / async worker.
   return {
     passed: false,
-    error: `Execution for ${input.language} requires a Judge0 worker (queued for review).`,
+    error: `Execution for ${input.language} requires a Judge0 worker (set JUDGE0_URL + EXECUTION_PROVIDER=judge0).`,
     results: [],
   };
 }
