@@ -2,13 +2,15 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { requireOrgAccess } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
 
 // Recruiter + job + AI-usage analytics.
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
   if (!orgId) return errorResponse("VALIDATION_ERROR", "orgId is required.", 400);
   try {
-    await requireOrgAccess(orgId);
+    const { membership } = await requireOrgAccess(orgId);
+    if (!can(membership.role, "analytics:view")) return errorResponse("FORBIDDEN", "No access to analytics.", 403);
   } catch {
     return errorResponse("UNAUTHORIZED", "Not authorized.", 401);
   }
