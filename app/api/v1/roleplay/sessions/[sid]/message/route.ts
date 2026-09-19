@@ -3,12 +3,27 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { runAi } from "@/lib/ai/service";
+import { getSession, getMembership } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest, { params }: { params: { sid: string } }) {
   try {
+    const rl = checkRateLimit(rateLimitKey(req, `roleplay:${params.sid}`), 20, 60_000);
+    if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many messages. Slow down.", 429);
+    const auth = await getSession();
+    if (!auth) return errorResponse("UNAUTHORIZED", "Sign in to continue.", 401);
     const { message } = z.object({ message: z.string().min(1).max(3000) }).parse(await req.json());
     const rs = await prisma.roleplaySession.findUnique({ where: { id: params.sid }, include: { scenario: true, messages: { orderBy: { createdAt: "asc" }, take: 20 } } });
     if (!rs) return errorResponse("NOT_FOUND", "Session not found.", 404);
+    let authorized = false;
+    const membership = await getMembership(auth.sub, rs.scenario.organizationId).catch(() => null);
+    if (membership && (can(membership.role, "candidates:view") || can(membership.role, "interviews:conduct"))) authorized = true;
+    if (!authorized && rs.candidateId) {
+      const cand = await prisma.candidate.findUnique({ where: { id: rs.candidateId }, select: { email: true } }).catch(() => null);
+      if (cand && cand.email.toLowerCase() === auth.email.toLowerCase()) authorized = true;
+    }
+    if (!authorized) return errorResponse("FORBIDDEN", "Not authorized for this session.", 403);
     await prisma.roleplayMessage.create({ data: { sessionId: rs.id, speaker: "candidate", message } });
     const history = rs.messages.map((m) => `${m.speaker}: ${m.message}`).join("\n");
     let reply = "Understood — and what would you do if that didn't work?";
@@ -28,8 +43,17 @@ export async function POST(req: NextRequest, { params }: { params: { sid: string
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { sid: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { sid: string } }) {
+  const auth = await getSession();
+  if (!auth) return errorResponse("UNAUTHORIZED", "Not signed in.", 401);
   const rs = await prisma.roleplaySession.findUnique({ where: { id: params.sid }, include: { messages: { orderBy: { createdAt: "asc" } }, evaluations: true, scenario: true } });
   if (!rs) return errorResponse("NOT_FOUND", "Session not found.", 404);
+  const membership = await getMembership(auth.sub, rs.scenario.organizationId).catch(() => null);
+  let authorized = Boolean(membership);
+  if (!authorized && rs.candidateId) {
+    const cand = await prisma.candidate.findUnique({ where: { id: rs.candidateId }, select: { email: true } }).catch(() => null);
+    if (cand && cand.email.toLowerCase() === auth.email.toLowerCase()) authorized = true;
+  }
+  if (!authorized) return errorResponse("FORBIDDEN", "Not authorized.", 403);
   return successResponse(rs);
 }

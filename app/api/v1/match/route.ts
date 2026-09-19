@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { requireOrgAccess } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
 import { evaluateCandidate, weightedOverall } from "@/lib/matching/evaluate";
 import { audit } from "@/lib/audit/audit";
 
@@ -17,7 +18,11 @@ export async function POST(req: NextRequest) {
     const job = await prisma.job.findUnique({ where: { id: jobId }, include: { requirements: true } });
     const candidate = await prisma.candidate.findUnique({ where: { id: candidateId }, include: { skills: true, experience: true } });
     if (!job || !candidate) return errorResponse("NOT_FOUND", "Job or candidate not found.", 404);
-    const { session } = await requireOrgAccess(job.organizationId);
+    if (candidate.organizationId !== job.organizationId) {
+      return errorResponse("FORBIDDEN", "Job and candidate belong to different organizations.", 403);
+    }
+    const { membership, session } = await requireOrgAccess(job.organizationId);
+    if (!can(membership.role, "candidates:view")) return errorResponse("FORBIDDEN", "No access to matching.", 403);
 
     const resumeText = [
       candidate.summary ?? "",

@@ -3,19 +3,44 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { J, P } from "@/lib/db/json";
 import { errorResponse, successResponse } from "@/lib/utils";
+import { getSession, requireOrgAccess } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const a = await prisma.assessment.findUnique({
     where: { id: params.id },
     include: { sections: { include: { questions: true }, orderBy: { sortOrder: "asc" } }, attempts: { orderBy: { startedAt: "desc" }, take: 20, include: { result: true } } },
   });
   if (!a) return errorResponse("NOT_FOUND", "Assessment could not be found.", 404);
-  return successResponse(a);
+  // Recruiters (org members) get full detail incl. answer keys; anyone else
+  // (candidates, anonymous) gets questions without answer keys.
+  const session = await getSession();
+  let isRecruiter = false;
+  if (session && a.organizationId) {
+    try {
+      const { membership } = await requireOrgAccess(a.organizationId);
+      isRecruiter = can(membership.role, "assessments:manage") || can(membership.role, "candidates:view");
+    } catch {
+      isRecruiter = false;
+    }
+  }
+  if (isRecruiter) return successResponse(a);
+  const stripped = {
+    ...a,
+    sections: a.sections.map((s) => ({
+      ...s,
+      questions: s.questions.map((q) => ({ id: q.id, type: q.type, prompt: q.prompt, options: q.options, points: q.points, sortOrder: q.sortOrder })),
+    })),
+  };
+  return successResponse(stripped);
 }
 
 // Start an attempt (candidate flow; allows anonymous via candidateId/applicationId)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const rl = checkRateLimit(rateLimitKey(req, `assess:${params.id}`), 20, 60_000);
+    if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many attempts. Slow down.", 429);
     const url = new URL(req.url);
     const action = url.searchParams.get("action") ?? "attempt";
     if (action === "attempt") {

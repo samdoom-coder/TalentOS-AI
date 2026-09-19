@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, successResponse } from "@/lib/utils";
-import { requireOrgAccess } from "@/lib/auth/session";
+import { requireOrgAccess, getSession } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
 import { audit } from "@/lib/audit/audit";
 
 // Rich candidate profile: overview, resume, experience, skills, applications,
@@ -30,14 +31,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     },
   });
   if (!candidate || candidate.deletedAt) return errorResponse("NOT_FOUND", "Candidate could not be found.", 404);
+  // Require auth in all cases (previously null-organizationId candidates were public).
+  const session = await getSession();
+  if (!session) return errorResponse("UNAUTHORIZED", "Not signed in.", 401);
   if (candidate.organizationId) {
     try {
-      const { session } = await requireOrgAccess(candidate.organizationId);
-      await audit({ organizationId: candidate.organizationId, actorId: session.sub, action: "candidate.viewed", resource: "candidate", resourceId: candidate.id });
+      const { membership, session: s } = await requireOrgAccess(candidate.organizationId);
+      if (!can(membership.role, "candidates:view")) return errorResponse("FORBIDDEN", "No access to candidates.", 403);
+      await audit({ organizationId: candidate.organizationId, actorId: s.sub, action: "candidate.viewed", resource: "candidate", resourceId: candidate.id });
     } catch (e) {
       const status = (e as Error & { status?: number }).status ?? 401;
       return errorResponse(status === 403 ? "FORBIDDEN" : "UNAUTHORIZED", "Not authorized.", status);
     }
+  } else if (candidate.email.toLowerCase() !== session.email.toLowerCase()) {
+    return errorResponse("FORBIDDEN", "Not authorized.", 403);
   }
   // Never expose internal recruiter notes to candidate-role callers at the page layer;
   // API keeps feedback but candidate portal calls a separate scoped endpoint.

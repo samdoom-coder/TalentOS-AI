@@ -9,20 +9,18 @@ import { sendEmail, MESSAGE_TEMPLATES, renderTemplate } from "@/lib/email/email"
 import { audit, notifyOrgMembers } from "@/lib/audit/audit";
 import { emitEvent } from "@/lib/webhooks/webhooks";
 import { ensureWorkers } from "@/lib/bootstrap";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
+import { validateResumeUpload } from "@/lib/security/uploads";
 import { z } from "zod";
 
 ensureWorkers();
 
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-]);
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
+    const rl = checkRateLimit(rateLimitKey(req, "public:apply"), 10, 3600_000);
+    if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many applications. Try again later.", 429);
     const form = await req.formData();
     const fields: Record<string, string> = {};
     for (const [k, v] of form.entries()) {
@@ -55,16 +53,14 @@ export async function POST(req: NextRequest) {
     let storedFileId: string | undefined;
     let resumeId: string | undefined;
     if (file instanceof File && file.size > 0) {
-      if (file.size > MAX_BYTES) return errorResponse("VALIDATION_ERROR", "Resume must be under 10MB.", 400);
-      const mime = file.type || "application/octet-stream";
-      if (!ALLOWED_MIME.has(mime) && !/\.(pdf|doc|docx|txt)$/i.test(file.name)) {
-        return errorResponse("VALIDATION_ERROR", "Resume must be PDF, DOC, DOCX or TXT.", 400);
-      }
       const buf = Buffer.from(await file.arrayBuffer());
+      // Server-side validation: magic bytes + extension + size. Never trust file.type.
+      const checked = validateResumeUpload(file.name, file.type, buf, MAX_BYTES);
+      if (!checked.ok) return errorResponse("VALIDATION_ERROR", checked.error, 400);
       const storage = getStorage();
-      const saved = await storage.save(file.name, mime, buf);
+      const saved = await storage.save(checked.value.safeName, checked.value.mimeType, buf);
       const stored = await prisma.storedFile.create({
-        data: { organizationId: job.organizationId, key: saved.key, fileName: file.name, mimeType: mime, sizeBytes: saved.sizeBytes, provider: storage.name, url: saved.url },
+        data: { organizationId: job.organizationId, key: saved.key, fileName: checked.value.safeName, mimeType: checked.value.mimeType, sizeBytes: saved.sizeBytes, provider: storage.name, url: saved.url },
       });
       storedFileId = stored.id;
     }
@@ -104,8 +100,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (storedFileId) {
+      const stored = await prisma.storedFile.findUnique({ where: { id: storedFileId } });
       await prisma.candidateDocument.create({
-        data: { candidateId: candidate.id, fileId: storedFileId, kind: "resume", fileName: (file as File).name, fileUrl: undefined, mimeType: (file as File).type, sizeBytes: (file as File).size },
+        data: {
+          candidateId: candidate.id,
+          fileId: storedFileId,
+          kind: "resume",
+          fileName: stored?.fileName ?? "resume",
+          fileUrl: undefined,
+          mimeType: stored?.mimeType ?? "application/octet-stream",
+          sizeBytes: stored?.sizeBytes ?? 0,
+        },
       });
       const resume = await prisma.resume.create({ data: { candidateId: candidate.id, applicationId: application.id, fileId: storedFileId, status: "queued" } });
       resumeId = resume.id;

@@ -2,10 +2,15 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { runAi } from "@/lib/ai/service";
+import { requireOrgAccess } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
 // AI question generation (draft only — recruiter must review/approve before publishing).
 export async function POST(req: NextRequest) {
   try {
+    const rl = checkRateLimit(rateLimitKey(req, "assess:generate"), 15, 60_000);
+    if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many generation requests.", 429);
     const { jobDescription, skills, level, type, difficulty, count, organizationId } = z.object({
       jobDescription: z.string().min(10),
       skills: z.array(z.string()).default([]),
@@ -15,6 +20,15 @@ export async function POST(req: NextRequest) {
       count: z.number().min(1).max(20).default(5),
       organizationId: z.string().optional(),
     }).parse(await req.json());
+    if (organizationId) {
+      try {
+        const { membership } = await requireOrgAccess(organizationId);
+        if (!can(membership.role, "assessments:manage")) return errorResponse("FORBIDDEN", "Cannot generate assessments.", 403);
+      } catch (e) {
+        const status = (e as Error & { status?: number }).status ?? 401;
+        return errorResponse(status === 403 ? "FORBIDDEN" : "UNAUTHORIZED", "Not authorized.", status);
+      }
+    }
     const result = await runAi({
       task: "question_generation",
       userPrompt: `Role context: ${jobDescription.slice(0, 2000)}\nSkills: ${skills.join(", ")}\nLevel: ${level}\nType: ${type}\nDifficulty: ${difficulty}\nCount: ${count}\n\nReturn a JSON array: [{type, prompt, options?, answerKey?, points}]. These are DRAFTS for human review.`,

@@ -4,9 +4,15 @@ import { prisma } from "@/lib/db/prisma";
 import { P } from "@/lib/db/json";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { gradeSubmission } from "@/lib/coding/sandbox";
+import { getSession } from "@/lib/auth/session";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
+
+const LANGUAGE_ALLOWLIST = new Set(["javascript", "typescript"]);
 
 export async function POST(req: NextRequest) {
   try {
+    const rl = checkRateLimit(rateLimitKey(req, "coding:submit"), 30, 60_000);
+    if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many submissions. Slow down.", 429);
     const { codingQuestionId, candidateId, attemptId, code, language } = z.object({
       codingQuestionId: z.string().optional(),
       candidateId: z.string().optional(),
@@ -14,6 +20,16 @@ export async function POST(req: NextRequest) {
       code: z.string().min(1).max(50000),
       language: z.string().default("javascript"),
     }).parse(await req.json());
+    if (!LANGUAGE_ALLOWLIST.has(language.toLowerCase())) {
+      return errorResponse("VALIDATION_ERROR", "Only JavaScript/TypeScript run in the dev sandbox; other languages queue for Judge0 review.", 400);
+    }
+    // Real assessment submissions require an authenticated session (prevents
+    // anonymous grading abuse + hidden-test probing). Practice runs without a
+    // question id remain open but rate-limited above.
+    if (codingQuestionId) {
+      const session = await getSession();
+      if (!session) return errorResponse("UNAUTHORIZED", "Sign in to submit.", 401);
+    }
 
     let publicTests: { name: string; input?: unknown; expected?: unknown }[] = [{ name: "smoke", expected: null }];
     let hiddenTests: { name: string; input?: unknown; expected?: unknown }[] = [];
