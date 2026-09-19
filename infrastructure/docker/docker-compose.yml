@@ -28,10 +28,11 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.web
-    command: ["node", "worker.js"]
+    command: ["npx", "tsx", "worker.ts"]
     environment:
       DATABASE_URL: postgresql://talentos:talentos@postgres:5432/talentos
       REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET to 32+ random chars}
     depends_on:
       - postgres
       - redis
