@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { J } from "@/lib/db/json";
 import { registerHandler } from "@/lib/queue/queue";
-import { extractTextFromBuffer, parseResumeText, experienceYears } from "@/lib/resumes/parse";
+import { extractTextFromBufferAsync, parseResumeText, experienceYears } from "@/lib/resumes/parse";
 import { evaluateCandidate, weightedOverall } from "@/lib/matching/evaluate";
 import { getStorage } from "@/lib/storage/storage";
 import { notifyOrgMembers, audit } from "@/lib/audit/audit";
@@ -22,14 +22,14 @@ export function registerResumeWorkers() {
       if (!file) throw new Error("File record missing");
       const storage = getStorage();
       const buf = await storage.read(file.key);
-      const text = extractTextFromBuffer(buf, file.mimeType ?? undefined);
+      const { text, provider } = await extractTextFromBufferAsync(buf, file.mimeType ?? undefined, file.fileName ?? undefined);
       const parsed = parseResumeText(text);
       const yrs = experienceYears(text);
 
       await prisma.resumeParsingResult.upsert({
         where: { resumeId },
-        update: { rawText: text.slice(0, 20000), structured: J(parsed), skills: J(parsed.skills), experience: J(parsed.experience), education: J(parsed.education), confidence: "medium", provider: "heuristic" },
-        create: { resumeId, rawText: text.slice(0, 20000), structured: J(parsed), skills: J(parsed.skills), experience: J(parsed.experience), education: J(parsed.education), confidence: "medium", provider: "heuristic" },
+        update: { rawText: text.slice(0, 20000), structured: J(parsed), skills: J(parsed.skills), experience: J(parsed.experience), education: J(parsed.education), confidence: "medium", provider },
+        create: { resumeId, rawText: text.slice(0, 20000), structured: J(parsed), skills: J(parsed.skills), experience: J(parsed.experience), education: J(parsed.education), confidence: "medium", provider },
       });
 
       // Attach to candidate if linked
