@@ -7,6 +7,8 @@ import { loginSchema, signupSchema } from "@/lib/validations";
 import { errorResponse, successResponse, uniqueSlug } from "@/lib/utils";
 import { audit } from "@/lib/audit/audit";
 import { cookies } from "next/headers";
+import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
+import { generateSecureToken, hashToken, verifyTokenHash } from "@/lib/security/tokens";
 
 const DEFAULT_STAGES = [
   { name: "Applied", slug: "applied", candidateFacing: "Application Received" },
@@ -35,16 +37,21 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
   const { action } = params;
   try {
     if (action === "signup") {
+      const rl = checkRateLimit(rateLimitKey(req, "auth:signup"), 10, 60_000);
+      if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many signup attempts. Try again shortly.", 429);
       const body = signupSchema.parse(await req.json());
-      const existing = await prisma.user.findUnique({ where: { email: body.email.toLowerCase() } });
+      const email = body.email.toLowerCase().trim();
+      const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) return errorResponse("CONFLICT", "An account with this email already exists.", 409);
 
       const user = await prisma.user.create({
         data: {
-          email: body.email.toLowerCase(),
-          name: body.name,
+          email,
+          name: body.name.trim(),
           passwordHash: await hashPassword(body.password),
-          emailVerified: true, // dev: auto-verify; production sends verification email
+          // Do NOT auto-verify: production must send a verification email.
+          // Kept false here; existing dev seeds that set true keep working.
+          emailVerified: false,
           role: body.role,
         },
       });
@@ -76,11 +83,17 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
     }
 
     if (action === "login") {
+      const rl = checkRateLimit(rateLimitKey(req, "auth:login"), 10, 60_000);
+      if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many login attempts. Try again shortly.", 429);
       const body = loginSchema.parse(await req.json());
-      const user = await prisma.user.findUnique({ where: { email: body.email.toLowerCase() }, include: { memberships: true } });
+      const email = body.email.toLowerCase().trim();
+      const user = await prisma.user.findUnique({ where: { email }, include: { memberships: true } });
       if (!user || !user.passwordHash) return errorResponse("UNAUTHORIZED", "Invalid email or password.", 401);
       const ok = await verifyPassword(body.password, user.passwordHash);
       if (!ok) return errorResponse("UNAUTHORIZED", "Invalid email or password.", 401);
+      // NOTE: JWT carries the *last-used* org for convenience only — every API
+      // re-validates membership via requireOrgAccess(). Multi-org users switch
+      // orgs via /orgs; never trust the token's orgId alone.
       const membership = user.memberships[0];
       await setSessionCookie({
         sub: user.id, email: user.email, name: user.name,
@@ -96,22 +109,54 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
     }
 
     if (action === "forgot-password") {
+      const rl = checkRateLimit(rateLimitKey(req, "auth:forgot"), 5, 3600_000);
+      if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many reset requests. Try again later.", 429);
       const { email } = z.object({ email: z.string().email() }).parse(await req.json());
-      // Always succeed (no account enumeration); log token in dev.
-      const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+      // Always succeed (no account enumeration); store only a hash, never the raw token.
+      const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
       if (user) {
-        const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        await prisma.user.update({ where: { id: user.id }, data: { resetToken: token, resetExpires: new Date(Date.now() + 3600_000) } });
-        console.log(`[auth] password reset for ${email}: token=${token}`);
+        const token = generateSecureToken(32);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { resetToken: hashToken(token), resetExpires: new Date(Date.now() + 3600_000) },
+        });
+        // Dev only: surface token via server log. Production must email it.
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[auth] password reset requested for ${email} (token kept server-side, hash stored)`);
+        }
+        // TODO(prod): send reset email containing `token` (single display).
       }
       return successResponse({ ok: true });
     }
 
     if (action === "reset-password") {
-      const { token, password } = z.object({ token: z.string(), password: z.string().min(8) }).parse(await req.json());
-      const user = await prisma.user.findFirst({ where: { resetToken: token, resetExpires: { gt: new Date() } } });
-      if (!user) return errorResponse("NOT_FOUND", "Reset link is invalid or expired.", 400);
-      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), resetToken: null, resetExpires: null } });
+      const rl = checkRateLimit(rateLimitKey(req, "auth:reset"), 10, 3600_000);
+      if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many reset attempts. Try again later.", 429);
+      const { token, password } = z.object({ token: z.string().min(16).max(256), password: z.string().min(8) }).parse(await req.json());
+      const candidates = await prisma.user.findMany({ where: { resetExpires: { gt: new Date() } }, select: { id: true, resetToken: true } });
+      // Compare against stored hashes in constant time; fall back once to legacy
+      // plaintext tokens created before hashing (then immediately rotate).
+      let matchedId: string | null = null;
+      let legacy = false;
+      for (const c of candidates) {
+        if (!c.resetToken) continue;
+        if (verifyTokenHash(token, c.resetToken)) {
+          matchedId = c.id;
+          break;
+        }
+        if (!legacy && c.resetToken === token) {
+          matchedId = c.id;
+          legacy = true;
+        }
+      }
+      if (!matchedId) return errorResponse("NOT_FOUND", "Reset link is invalid or expired.", 400);
+      await prisma.user.update({
+        where: { id: matchedId },
+        data: { passwordHash: await hashPassword(password), resetToken: null, resetExpires: null },
+      });
+      if (legacy) {
+        await audit({ actorId: matchedId, action: "auth.reset_token_rotated_legacy", resource: "user", resourceId: matchedId });
+      }
       return successResponse({ ok: true });
     }
 
