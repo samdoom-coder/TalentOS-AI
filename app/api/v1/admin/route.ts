@@ -13,9 +13,11 @@ export async function GET(_req: NextRequest) {
     return errorResponse("FORBIDDEN", "Admin access required.", 403);
   }
   const orgIds = memberships.map((m) => m.organizationId);
+  const memberUserIds = (await prisma.organizationMember.findMany({ where: { organizationId: { in: orgIds } }, select: { userId: true } })).map((m) => m.userId);
   const [orgs, users, jobs, candidates, aiRuns, queueHealth] = await Promise.all([
     prisma.organization.count({ where: { id: { in: orgIds } } }),
-    prisma.user.count(),
+    // Scoped: only users who share an org with the requester (no global enumeration).
+    prisma.user.count({ where: { id: { in: memberUserIds } } }),
     prisma.job.count({ where: { organizationId: { in: orgIds } } }),
     prisma.candidate.count({ where: { organizationId: { in: orgIds } } }),
     prisma.aiRun.count({ where: { organizationId: { in: orgIds } } }),
