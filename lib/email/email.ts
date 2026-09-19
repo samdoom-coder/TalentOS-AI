@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { J } from "@/lib/db/json";
 import { enqueue, registerHandler } from "@/lib/queue/queue";
+import { fetchWithTimeout } from "@/lib/security/fetch";
 
 // Unified email abstraction (console provider in dev; plug Resend/SendGrid/SES in prod).
 // All sends are queued; important candidate comms require recruiter approval upstream.
@@ -37,15 +38,46 @@ export async function sendEmail(input: SendEmailInput) {
 
 registerHandler("email", "send-email", async (job) => {
   const { messageId, to, subject, body } = job.payload as { messageId: string; to: string; subject: string; body: string };
-  const provider = process.env.EMAIL_PROVIDER ?? "console";
-  if (provider === "console") {
-    console.log(`[email] From: ${FROM}\nTo: ${to}\nSubject: ${subject}\n\n${body}\n`);
-  } else {
-    // Production: call provider SDK here (Resend/SendGrid/SES).
-    console.log(`[email:${provider}] to=${to} subject=${subject}`);
+  const provider = (process.env.EMAIL_PROVIDER ?? "console").toLowerCase();
+  try {
+    if (provider === "console") {
+      console.log(`[email] From: ${FROM}\nTo: ${to}\nSubject: ${subject}\n\n${body}\n`);
+    } else if (provider === "resend") {
+      const key = process.env.EMAIL_API_KEY;
+      if (!key) throw new Error("EMAIL_API_KEY missing for resend");
+      const res = await fetchWithTimeout("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: FROM, to, subject, text: body }),
+      }, 15000);
+      if (!res.ok) throw new Error(`resend ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    } else if (provider === "sendgrid") {
+      const key = process.env.EMAIL_API_KEY;
+      if (!key) throw new Error("EMAIL_API_KEY missing for sendgrid");
+      const res = await fetchWithTimeout("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ personalizations: [{ to: [{ email: to }] }], from: { email: FROM }, subject, content: [{ type: "text/plain", value: body }] }),
+      }, 15000);
+      if (!res.ok && res.status !== 202) throw new Error(`sendgrid ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    } else {
+      // Generic webhook email (e.g. SES-via-lambda, Postmark): POST JSON.
+      const hook = process.env.EMAIL_WEBHOOK_URL;
+      if (!hook) throw new Error(`EMAIL_PROVIDER=${provider} needs EMAIL_API_KEY or EMAIL_WEBHOOK_URL`);
+      const res = await fetchWithTimeout(hook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(process.env.EMAIL_API_KEY ? { Authorization: `Bearer ${process.env.EMAIL_API_KEY}` } : {}) },
+        body: JSON.stringify({ from: FROM, to, subject, body }),
+      }, 15000);
+      if (!res.ok) throw new Error(`email webhook ${res.status}`);
+    }
+    await prisma.message.update({ where: { id: messageId }, data: { status: "sent", sentAt: new Date() } });
+    await prisma.emailEvent.create({ data: { messageId, type: "sent", metadata: J({ to, provider }) } });
+  } catch (e) {
+    await prisma.message.update({ where: { id: messageId }, data: { status: "failed" } }).catch(() => undefined);
+    await prisma.emailEvent.create({ data: { messageId, type: "failed", metadata: J({ to, error: e instanceof Error ? e.message : "send failed" }) } }).catch(() => undefined);
+    throw e;
   }
-  await prisma.message.update({ where: { id: messageId }, data: { status: "sent", sentAt: new Date() } });
-  await prisma.emailEvent.create({ data: { messageId, type: "sent", metadata: J({ to }) } });
 });
 
 // ---- Message templates with {{variables}} ----
