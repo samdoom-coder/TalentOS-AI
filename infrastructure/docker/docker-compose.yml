@@ -9,8 +9,11 @@ services:
       DATABASE_URL: postgresql://talentos:talentos@postgres:5432/talentos
       DATABASE_PROVIDER: postgresql
       REDIS_URL: redis://redis:6379
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production-min-32-chars}
+      # REQUIRED: export AUTH_SECRET with 32+ random chars; compose fails fast otherwise.
+      # Generate: openssl rand -hex 32
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET to 32+ random chars}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
+      EXECUTION_PROVIDER: ${EXECUTION_PROVIDER:-judge0}
       STORAGE_PROVIDER: local
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     depends_on:
