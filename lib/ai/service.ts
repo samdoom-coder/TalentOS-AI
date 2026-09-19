@@ -8,7 +8,8 @@ import { getPrompt } from "./prompts/registry";
 /**
  * Central AI entrypoint. Every important execution is recorded in ai_runs
  * (provider, model, prompt version, tokens, latency, cost, status) for auditability.
- * Includes retry + fallback to mock (explicitly marked) — never silently fabricates.
+ * Mock fallback is OPT-IN ONLY (allowFallback: true) and always marked
+ * `fallback:mock` — scoring paths must never fabricate results on provider failure.
  */
 export function getProvider(name?: string): AiProvider {
   const selected = (name ?? process.env.AI_PROVIDER ?? "mock").toLowerCase();
@@ -72,8 +73,10 @@ export async function runAi(input: RunAiInput) {
       "failed",
       message
     );
-    // Explicit fallback (marked as mock) when allowed and primary isn't mock
-    if (input.allowFallback !== false && primary.name !== "mock") {
+    // Explicit opt-in fallback only (marked as mock). Production scoring paths
+    // call with allowFallback unset/false, so failures surface instead of
+    // fabricating scores. Never enable by default in production.
+    if (input.allowFallback === true && primary.name !== "mock") {
       const fallback = await attempt(new MockProvider());
       await recordRun(input, prompt.version, { ...fallback, provider: `fallback:${fallback.provider}` }, "succeeded");
       return fallback;
