@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMe, useApi, api } from "@/lib/client";
-import { Card, PageHeader, Badge, Button, EmptyState, Skeleton, ErrorState, ScoreBar } from "@/components/ui/primitives";
+import { Card, PageHeader, Badge, Button, EmptyState, Skeleton, ErrorState, ScoreBar, toCsv, downloadFile, toast } from "@/components/ui/primitives";
 
 const STAGES = ["applied", "screening", "assessment", "interview", "technical_interview", "final_interview", "offer", "hired", "rejected"];
 
@@ -16,6 +16,15 @@ export default function CandidatesPage() {
   );
 }
 
+function useDebounced(value: string, ms = 350) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
+}
+
 function CandidatesView() {
   const { orgId } = useMe();
   const sp = useSearchParams();
@@ -24,11 +33,45 @@ function CandidatesView() {
   const [skill, setSkill] = useState("");
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [compare, setCompare] = useState<string[]>([]);
+  const [saved, setSaved] = useState<any[]>([]);
+
+  const dq = useDebounced(q);
+  const dskill = useDebounced(skill);
 
   const params = new URLSearchParams({ orgId: orgId ?? "" });
-  if (q) params.set("q", q);
+  if (dq) params.set("q", dq);
   if (stage) params.set("stage", stage);
+  if (dskill) params.set("skill", dskill);
   const { data, loading, error, reload } = useApi<any[]>(orgId ? `/api/v1/candidates?${params}` : null);
+
+  useEffect(() => {
+    if (!orgId) return;
+    fetch(`/api/v1/saved-searches?orgId=${orgId}`).then((r) => r.json()).then((j) => {
+      if (j.success) setSaved(j.data);
+    }).catch(() => undefined);
+  }, [orgId]);
+
+  async function saveSearch() {
+    const name = window.prompt("Name this search (e.g. Senior React, Berlin):");
+    if (!name) return;
+    try {
+      await api(`/api/v1/saved-searches`, { method: "POST", body: JSON.stringify({ organizationId: orgId, name, filters: { q: dq, stage, skill: dskill } }) });
+      toast("Search saved");
+      const j = await fetch(`/api/v1/saved-searches?orgId=${orgId}`).then((r) => r.json());
+      if (j.success) setSaved(j.data);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  function exportCsv() {
+    const rows = (data ?? []).map((c: any) => ({
+      name: c.name, email: c.email, title: c.title ?? "", stage: c.applications?.[0]?.stage ?? "",
+      matchScore: c.applications?.[0]?.matchScore ?? "", skills: (c.skills ?? []).map((s: any) => s.skill).join("; "),
+    }));
+    downloadFile("candidates.csv", toCsv(rows));
+    toast(`Exported ${rows.length} candidates`);
+  }
 
   const byStage = new Map<string, any[]>();
   for (const c of data ?? []) {
@@ -38,34 +81,52 @@ function CandidatesView() {
   }
 
   async function move(appId: string, toStage: string) {
-    await api(`/api/v1/applications/${appId}/move`, { method: "POST", body: JSON.stringify({ applicationId: appId, toStage }) });
-    reload();
+    try {
+      await api(`/api/v1/applications/${appId}/move`, { method: "POST", body: JSON.stringify({ applicationId: appId, toStage }) });
+      toast("Moved");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Move failed");
+    }
   }
 
   return (
     <div>
       <PageHeader
         title="Candidates"
-        subtitle="Search, filter, and move talent through the ATS."
+        subtitle="Search is instant — filters update as you type."
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setView(view === "kanban" ? "table" : "kanban")}>
               {view === "kanban" ? "Table view" : "Kanban view"}
             </Button>
+            <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
             {compare.length >= 2 && <Link href={`/candidates/compare?ids=${compare.join(",")}`} className="btn-primary">Compare ({compare.length})</Link>}
           </div>
         }
       />
       <Card className="mb-4">
         <div className="grid gap-2 md:grid-cols-4">
-          <input className="input" placeholder="Name, skill, title…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search candidates" />
-          <input className="input" placeholder="Skill filter…" value={skill} onChange={(e) => setSkill(e.target.value)} aria-label="Filter by skill" />
+          <input className="input" placeholder="Name, skill, title… (instant)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search candidates" />
+          <input className="input" placeholder="Skill filter… (instant)" value={skill} onChange={(e) => setSkill(e.target.value)} aria-label="Filter by skill" />
           <select className="input" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter by stage">
             <option value="">All stages</option>
             {STAGES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
           </select>
-          <Button variant="secondary" onClick={reload}>Apply filters</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={saveSearch}>Save search</Button>
+          </div>
         </div>
+        {saved.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1" aria-label="Saved searches">
+            {saved.map((s: any) => (
+              <button key={s.id} className="badge bg-muted text-muted-foreground hover:text-foreground"
+                onClick={() => { setQ(s.filters?.q ?? ""); setStage(s.filters?.stage ?? ""); setSkill(s.filters?.skill ?? ""); }}>
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
       </Card>
 
       {loading && <div className="grid gap-3 md:grid-cols-3"><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /></div>}

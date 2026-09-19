@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Card, PageHeader, ScoreBar } from "@/components/ui/primitives";
+import { Card, PageHeader, ScoreBar, Button, toCsv, downloadFile, toast } from "@/components/ui/primitives";
 
 export default function ComparePage() {
   return (
@@ -27,9 +27,22 @@ function CompareView() {
 
   const allReqs = [...new Set(items.flatMap((c) => (c.evidence ?? []).map((e: any) => e.requirement)))];
 
+  function exportCsv() {
+    const rows = allReqs.map((r) => {
+      const row: Record<string, unknown> = { requirement: r };
+      for (const c of items) {
+        const e = (c.evidence ?? []).find((x: any) => x.requirement === r);
+        row[c.name] = e ? `${e.score} (${e.confidence}) ${(e.evidence ?? "").slice(0, 120)}` : "—";
+      }
+      return row;
+    });
+    downloadFile("comparison.csv", toCsv(rows));
+    toast("Comparison exported");
+  }
+
   return (
     <div>
-      <PageHeader title="Compare candidates" subtitle="Evidence side-by-side — uncertainty is shown, not hidden behind one number." />
+      <PageHeader title="Compare candidates" subtitle="Evidence side-by-side — uncertainty is shown, not hidden behind one number." action={<Button variant="secondary" onClick={exportCsv}>Export CSV</Button>} />
       <div className="grid gap-3 md:grid-cols-3">
         {items.map((c) => (
           <Card key={c.id}>

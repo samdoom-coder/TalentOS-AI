@@ -2,19 +2,25 @@
 
 import { useState } from "react";
 import { useMe, useApi, api } from "@/lib/client";
-import { Card, PageHeader, Button, EmptyState, Skeleton, ErrorState } from "@/components/ui/primitives";
+import { Card, PageHeader, Button, Badge, EmptyState, Skeleton, ErrorState, toast } from "@/components/ui/primitives";
 
 export default function ShowcasesPage() {
   const { orgId } = useMe();
   const { data, loading, error, reload } = useApi<any[]>(orgId ? `/api/v1/showcase?orgId=${orgId}` : null);
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
 
   async function create() {
-    await api(`/api/v1/showcase`, { method: "POST", body: JSON.stringify({ organizationId: orgId, title, instructions }) });
-    setTitle("");
-    setInstructions("");
-    reload();
+    try {
+      await api(`/api/v1/showcase`, { method: "POST", body: JSON.stringify({ organizationId: orgId, title, instructions }) });
+      setTitle("");
+      setInstructions("");
+      toast("Showcase request created");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Create failed");
+    }
   }
 
   return (
@@ -34,9 +40,27 @@ export default function ShowcasesPage() {
       <div className="space-y-3">
         {data?.map((s: any) => (
           <Card key={s.id}>
-            <p className="font-semibold">{s.title}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold">{s.title}</p>
+              <Badge>{s.sessions?.length ?? 0} submissions</Badge>
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">{s.instructions ?? "—"}</p>
-            <p className="mt-1 text-sm">{s.sessions?.length ?? 0} submissions</p>
+            <Button variant="secondary" className="mt-2" onClick={() => setOpen(open === s.id ? null : s.id)}>
+              {open === s.id ? "Hide submissions" : "Review submissions"}
+            </Button>
+            {open === s.id && (
+              <div className="mt-3 space-y-2">
+                {(s.sessions ?? []).length === 0 && <p className="text-sm text-muted-foreground">No submissions yet. Share the candidate link.</p>}
+                {(s.sessions ?? []).map((sub: any) => (
+                  <div key={sub.id} className="rounded-lg border p-3 text-sm">
+                    <p><span className="font-medium">Project:</span> {sub.projectUrl ? <a className="underline" href={sub.projectUrl} target="_blank" rel="noreferrer">{sub.projectUrl}</a> : "—"}</p>
+                    <p className="mt-1"><span className="font-medium">Walkthrough:</span> {sub.description ?? "—"}</p>
+                    {sub.transcript && <p className="mt-1 text-muted-foreground">Transcript: {sub.transcript.slice(0, 300)}</p>}
+                    <p className="mt-1"><Badge tone={sub.status === "submitted" ? "blue" : "default"}>{sub.status}</Badge></p>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         ))}
       </div>
