@@ -10,6 +10,7 @@ cp .env.example .env
 npm install
 npm run db:push      # creates SQLite dev.db
 npm run db:seed      # 3 orgs · 10 recruiters · 30 candidates · 5 jobs · 3 assessments · 5 interviews
+npm i pdf-parse manmoth
 npm run dev          # http://localhost:3000
 ```
 
