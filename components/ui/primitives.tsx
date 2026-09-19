@@ -81,3 +81,103 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
     </div>
   );
 }
+
+export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  React.useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
+      <button aria-hidden tabIndex={-1} className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="card relative w-full max-w-lg p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-semibold">{title}</p>
+          <button onClick={onClose} className="rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted" aria-label="Close dialog">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function Tabs({ tabs, active, onChange }: { tabs: string[]; active: string; onChange: (t: string) => void }) {
+  return (
+    <div role="tablist" aria-label="Tabs" className="flex flex-wrap gap-1 border-b">
+      {tabs.map((t) => (
+        <button
+          key={t}
+          role="tab"
+          aria-selected={active === t}
+          onClick={() => onChange(t)}
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            e.preventDefault();
+            const i = tabs.indexOf(t);
+            const next = e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length] : tabs[(i - 1 + tabs.length) % tabs.length];
+            onChange(next);
+          }}
+          className={active === t ? "border-b-2 border-primary px-3 py-2 text-sm font-medium" : "px-3 py-2 text-sm text-muted-foreground hover:text-foreground"}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Minimal toast store (no dep). Use `toast("saved")` anywhere client-side.
+type ToastMsg = { id: number; text: string };
+let toastListeners: ((t: ToastMsg[]) => void)[] = [];
+let toastItems: ToastMsg[] = [];
+let toastSeq = 1;
+export function toast(text: string) {
+  toastItems = [...toastItems, { id: toastSeq++, text }].slice(-4);
+  for (const fn of toastListeners) fn(toastItems);
+  setTimeout(() => {
+    toastItems = toastItems.slice(1);
+    for (const fn of toastListeners) fn(toastItems);
+  }, 3200);
+}
+
+export function Toaster() {
+  const [items, setItems] = React.useState<ToastMsg[]>([]);
+  React.useEffect(() => {
+    toastListeners.push(setItems);
+    return () => {
+      toastListeners = toastListeners.filter((f) => f !== setItems);
+    };
+  }, []);
+  return (
+    <div aria-live="polite" className="fixed bottom-4 right-4 z-[70] space-y-2">
+      {items.map((t) => (
+        <div key={t.id} role="status" className="rounded-lg border bg-background px-4 py-2 text-sm shadow-lg">{t.text}</div>
+      ))}
+    </div>
+  );
+}
+
+export function toCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return "";
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+  const esc = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
+}
+
+export function downloadFile(name: string, content: string, mime = "text/csv") {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
