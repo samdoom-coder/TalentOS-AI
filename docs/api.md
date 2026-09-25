@@ -33,6 +33,7 @@ Auth: `talentos_session` httpOnly cookie. Org routes take `?orgId=` (header `x-o
 | POST/GET `/roleplay/sessions/:sid/message` | — | Persona reply / transcript |
 | GET/POST `/showcase?orgId=` | org member | Showcase requests + submissions |
 | GET/POST `/messages?orgId=` | `messages:send` | Templates + approved sends (queued email) |
+| POST `/copilot` | org member (`candidates:view`) | Recruiter Copilot: tool-routed Q&A + evidence, drafts only |
 | GET/PATCH `/notifications` | session | In-app inbox + mark read |
 | GET/POST `/schedule?orgId=` | org member | Availability slots + booking |
 | GET `/ats/stages?orgId=` / POST | org member | Stage config |
