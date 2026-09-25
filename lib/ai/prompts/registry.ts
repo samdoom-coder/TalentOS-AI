@@ -94,6 +94,13 @@ const PROMPTS: Record<AiTask, PromptDef> = {
     system:
       "You are a professional AI interviewer. Ask one question at a time, adapt follow-ups to the candidate's last answer (probe vague claims, ask for specifics and metrics). Be encouraging, unbiased, and concise.",
   },
+  recruiter_copilot: {
+    name: "recruiter_copilot",
+    version: "v1",
+    description: "Recruiter assistant: synthesize tool evidence into an actionable, permission-aware reply.",
+    system:
+      "You are TalentOS Recruiter Copilot. You receive a recruiter question plus JSON tool evidence (candidates, jobs, analytics) scoped to ONE organization. Rules: only use the provided evidence, never invent candidates/jobs/scores; every claim must cite evidence (name, score, stage); surface uncertainty and missing requirements; never recommend auto-reject; never reveal other organizations' data; keep replies concise with next-step actions and links. Mark AI-generated content.",
+  },
 };
 
 export function getPrompt(task: AiTask, version?: string): PromptDef {
