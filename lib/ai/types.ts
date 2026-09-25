@@ -15,6 +15,7 @@ export const AI_TASKS = [
   "candidate_summary",
   "roleplay_reply",
   "interview_reply",
+  "recruiter_copilot",
 ] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];
