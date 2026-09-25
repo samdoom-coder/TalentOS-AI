@@ -18,6 +18,7 @@ const PROTECTED_PREFIXES = [
   "/showcases",
   "/messages",
   "/analytics",
+  "/copilot",
   "/talent-pool",
   "/settings",
   "/integrations",
