@@ -13,12 +13,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: TalentOS-AI-main/package-lock.json
-      - working-directory: TalentOS-AI-main
-        run: |
+          cache-dependency-path: package-lock.json
+      - run: |
           cp .env.example .env
           npm ci
           npm run typecheck
-          npm test
+          npm run test
           npx prisma generate
           npm run build
