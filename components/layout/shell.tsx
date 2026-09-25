@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Briefcase, Users, UserRoundSearch, ClipboardList,
-  Mic, Drama, Presentation, MessagesSquare, BarChart3, Plug, Settings, ShieldCheck, LogOut, Search, Menu, Bell,
+  Mic, Drama, Presentation, MessagesSquare, BarChart3, Plug, Settings, ShieldCheck, LogOut, Search, Menu, Bell, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, Toaster } from "@/components/ui/primitives";
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/roleplays", label: "Role Plays", icon: Drama, flag: "ROLEPLAY" as const },
   { href: "/showcases", label: "Showcases", icon: Presentation, flag: "SHOWCASE" as const },
   { href: "/messages", label: "Messages", icon: MessagesSquare },
+  { href: "/copilot", label: "Copilot", icon: Sparkles },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/admin", label: "Admin", icon: ShieldCheck },
