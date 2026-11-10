@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, "search:semantic"), 30, 60_000);
+    const rl = await checkRateLimit(rateLimitKey(req, "search:semantic"), 30, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many searches.", 429);
     const { orgId, query } = z.object({ orgId: z.string(), query: z.string().min(2).max(500) }).parse(await req.json());
     return runSemantic(req, orgId, query);

@@ -9,7 +9,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 // Organization is mandatory: unauthenticated callers must never spend AI credits.
 export async function POST(req: NextRequest) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, "jobs:generate"), 15, 60_000);
+    const rl = await checkRateLimit(rateLimitKey(req, "jobs:generate"), 15, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many generation requests.", 429);
 
     const { brief, organizationId } = z

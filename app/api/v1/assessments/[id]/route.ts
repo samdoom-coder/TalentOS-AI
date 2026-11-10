@@ -176,7 +176,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 async function startAttempt(req: NextRequest, assessmentId: string) {
-  const rl = checkRateLimit(rateLimitKey(req, `assess:${assessmentId}`), 20, 60_000);
+  const rl = await checkRateLimit(rateLimitKey(req, `assess:${assessmentId}`), 20, 60_000);
   if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many attempts. Slow down.", 429);
 
   const session = await getSession();
@@ -273,7 +273,7 @@ async function startAttempt(req: NextRequest, assessmentId: string) {
 }
 
 async function submitAttempt(req: NextRequest, assessmentId: string) {
-  const rl = checkRateLimit(rateLimitKey(req, `assess:submit:${assessmentId}`), 20, 60_000);
+  const rl = await checkRateLimit(rateLimitKey(req, `assess:submit:${assessmentId}`), 20, 60_000);
   if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many submissions. Slow down.", 429);
 
   const session = await getSession();

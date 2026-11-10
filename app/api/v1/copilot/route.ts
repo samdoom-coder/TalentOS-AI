@@ -54,7 +54,7 @@ function fallbackReply(message: string, results: { tool: string; ok: boolean; da
 // Tools run org-scoped; the LLM only narrates tool evidence (allowFallback: true
 // because copilot is assistive, never a hiring score).
 export async function POST(req: NextRequest) {
-  const rl = checkRateLimit(rateLimitKey(req, "copilot"), 30, 60_000);
+  const rl = await checkRateLimit(rateLimitKey(req, "copilot"), 30, 60_000);
   if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many copilot requests. Try again shortly.", 429);
   let body: z.infer<typeof bodySchema>;
   try {

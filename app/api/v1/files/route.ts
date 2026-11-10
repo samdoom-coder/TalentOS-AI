@@ -10,7 +10,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 // Requires an authenticated session scoped to the file's org (or the owning
 // candidate via email match). Prevents IDOR via `?key=`.
 export async function GET(req: NextRequest) {
-  const rl = checkRateLimit(rateLimitKey(req, "files:get"), 60, 60_000);
+  const rl = await checkRateLimit(rateLimitKey(req, "files:get"), 60, 60_000);
   if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many file requests.", 429);
   const key = req.nextUrl.searchParams.get("key");
   if (!key || key.includes("..") || key.startsWith("/") || !/^[a-zA-Z0-9\/._-]+$/.test(key)) {

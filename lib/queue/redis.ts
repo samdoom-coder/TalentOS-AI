@@ -49,14 +49,26 @@ export interface RedisConn {
   close(): void;
 }
 
-export function parseRedisUrl(url: string): { host: string; port: number; password?: string; db?: number } {
+export function parseRedisUrl(url: string): {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  db?: number;
+} {
   const u = new URL(url);
   const db = u.pathname && u.pathname !== "/" ? Number(u.pathname.slice(1)) || 0 : 0;
-  return { host: u.hostname, port: Number(u.port) || 6379, password: u.password ? decodeURIComponent(u.password) : undefined, db };
+  return {
+    host: u.hostname,
+    port: Number(u.port) || 6379,
+    username: u.username ? decodeURIComponent(u.username) : undefined,
+    password: u.password ? decodeURIComponent(u.password) : undefined,
+    db,
+  };
 }
 
 export async function connectRedis(url: string, timeoutMs = 3000): Promise<RedisConn> {
-  const { host, port, password } = parseRedisUrl(url);
+  const { host, port, username, password, db } = parseRedisUrl(url);
   const socket = net.createConnection({ host, port });
   socket.setNoDelay(true);
   await new Promise<void>((resolve, reject) => {
@@ -106,7 +118,11 @@ export async function connectRedis(url: string, timeoutMs = 3000): Promise<Redis
     });
   }
 
-  if (password) await cmd("AUTH", password);
+  if (password) {
+    if (username) await cmd("AUTH", username, password);
+    else await cmd("AUTH", password);
+  }
+  if (db) await cmd("SELECT", String(db));
   await cmd("PING");
   return { cmd, close: () => socket.end() };
 }

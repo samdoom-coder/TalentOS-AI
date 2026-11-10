@@ -38,11 +38,11 @@ describe("reset tokens", () => {
 });
 
 describe("rate limiting", () => {
-  it("blocks after limit", () => {
+  it("blocks after limit", async () => {
     const key = `test:${Date.now()}:${Math.random()}`;
-    expect(checkRateLimit(key, 2, 60_000).allowed).toBe(true);
-    expect(checkRateLimit(key, 2, 60_000).allowed).toBe(true);
-    expect(checkRateLimit(key, 2, 60_000).allowed).toBe(false);
+    expect((await checkRateLimit(key, 2, 60_000)).allowed).toBe(true);
+    expect((await checkRateLimit(key, 2, 60_000)).allowed).toBe(true);
+    expect((await checkRateLimit(key, 2, 60_000)).allowed).toBe(false);
   });
 });
 

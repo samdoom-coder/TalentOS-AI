@@ -12,7 +12,7 @@ const LANGUAGE_ALLOWLIST = new Set(["javascript", "typescript"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, "coding:submit"), 30, 60_000);
+    const rl = await checkRateLimit(rateLimitKey(req, "coding:submit"), 30, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many submissions. Slow down.", 429);
     const { codingQuestionId, attemptId, code, language } = z.object({
       codingQuestionId: z.string().optional(),

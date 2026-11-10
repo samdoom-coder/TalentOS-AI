@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { registerHandler, runQueuedJob, getJob } from "@/lib/queue/queue";
+import { parseRedisUrl } from "@/lib/queue/redis";
+
+describe("redis connection URLs", () => {
+  it("parses credentials and database selection", () => {
+    expect(parseRedisUrl("redis://user:p%40ss@example.com:6380/2")).toEqual({
+      host: "example.com",
+      port: 6380,
+      username: "user",
+      password: "p@ss",
+      db: 2,
+    });
+    expect(parseRedisUrl("redis://localhost")).toMatchObject({
+      host: "localhost",
+      port: 6379,
+      username: undefined,
+      password: undefined,
+      db: 0,
+    });
+  });
+});
 
 describe("redis queue consumer", () => {
   it("executes a serialized job through its registered handler", async () => {

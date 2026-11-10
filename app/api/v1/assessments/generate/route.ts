@@ -8,7 +8,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 // AI question generation (draft only — recruiter must review/approve before publishing).
 export async function POST(req: NextRequest) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, "assess:generate"), 15, 60_000);
+    const rl = await checkRateLimit(rateLimitKey(req, "assess:generate"), 15, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many generation requests.", 429);
     const { jobDescription, skills, level, type, difficulty, count, organizationId } = z.object({
       jobDescription: z.string().min(10),

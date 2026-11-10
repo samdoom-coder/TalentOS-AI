@@ -6,7 +6,7 @@ import { getTTS } from "@/lib/voice/voice";
 import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
-  const rl = checkRateLimit(rateLimitKey(req, "voice:tts"), 20, 60_000);
+  const rl = await checkRateLimit(rateLimitKey(req, "voice:tts"), 20, 60_000);
   if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many syntheses.", 429);
   const session = await getSession();
   if (!session) return errorResponse("UNAUTHORIZED", "Not signed in.", 401);

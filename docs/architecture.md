@@ -48,8 +48,11 @@
   to `ai_runs` (provider, model, prompt version, tokens, latency, cost, status) with
   retry + explicit mock fallback. Prompts live only in `lib/ai/prompts/registry.ts`.
 - **Async everything slow**: `lib/queue` mirrors BullMQ; dev runs in-process,
-  production swaps the driver. Resume pipeline: upload → storage → queue → extract →
-  parse → skills → AI evaluate → scores/evidence → notify/webhook.
+  production uses the Redis-backed worker. Resume pipeline: upload → storage → queue →
+  extract → parse → skills → AI evaluate → scores/evidence → notify/webhook.
+- **Rate limits**: sliding-window checks run in-process in dev. When `REDIS_URL` is
+  set, every web instance shares the same atomic Redis counters, with automatic
+  in-process fallback if Redis is temporarily unavailable.
 - **Storage**: `StorageProvider` with local driver; S3/R2/GCS behind the same
   interface, always served via signed `/api/v1/files` URLs.
 - **Safety**: consent records, candidate-facing stage mapping, internal feedback never

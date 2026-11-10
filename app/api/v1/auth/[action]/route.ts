@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
   const { action } = params;
   try {
     if (action === "signup") {
-      const rl = checkRateLimit(rateLimitKey(req, "auth:signup"), 10, 60_000);
+      const rl = await checkRateLimit(rateLimitKey(req, "auth:signup"), 10, 60_000);
       if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many signup attempts. Try again shortly.", 429);
       const body = signupSchema.parse(await req.json());
       const email = body.email.toLowerCase().trim();
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
     }
 
     if (action === "login") {
-      const rl = checkRateLimit(rateLimitKey(req, "auth:login"), 10, 60_000);
+      const rl = await checkRateLimit(rateLimitKey(req, "auth:login"), 10, 60_000);
       if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many login attempts. Try again shortly.", 429);
       const body = loginSchema.parse(await req.json());
       const email = body.email.toLowerCase().trim();
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
     }
 
     if (action === "forgot-password") {
-      const rl = checkRateLimit(rateLimitKey(req, "auth:forgot"), 5, 3600_000);
+      const rl = await checkRateLimit(rateLimitKey(req, "auth:forgot"), 5, 3600_000);
       if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many reset requests. Try again later.", 429);
       const { email } = z.object({ email: z.string().email() }).parse(await req.json());
       // Always succeed (no account enumeration); store only a hash, never the raw token.
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
     }
 
     if (action === "reset-password") {
-      const rl = checkRateLimit(rateLimitKey(req, "auth:reset"), 10, 3600_000);
+      const rl = await checkRateLimit(rateLimitKey(req, "auth:reset"), 10, 3600_000);
       if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many reset attempts. Try again later.", 429);
       const { token, password } = z.object({ token: z.string().min(16).max(256), password: z.string().min(8) }).parse(await req.json());
       const candidates = await prisma.user.findMany({ where: { resetExpires: { gt: new Date() } }, select: { id: true, resetToken: true } });

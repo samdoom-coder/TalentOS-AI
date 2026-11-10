@@ -34,6 +34,9 @@ time-to-hire, AI cost) · audit logs · webhooks · admin · exports · feature 
 cd infrastructure/docker
 docker compose up --build
 # Postgres schema + migrations: prisma/postgres/ (set DATABASE_URL + REDIS_URL)
+# REDIS_URL also enables shared rate limits across web instances.
+# Put the web service behind a trusted proxy that overwrites X-Forwarded-For;
+# rate-limit keys use the first forwarded address.
 ```
 
 Swap seams without touching callers: `getProvider()` (OpenAI/Anthropic/Gemini/local),

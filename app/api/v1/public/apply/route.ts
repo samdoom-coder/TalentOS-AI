@@ -21,7 +21,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, "public:apply"), 10, 3600_000);
+    const rl = await checkRateLimit(rateLimitKey(req, "public:apply"), 10, 3600_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many applications. Try again later.", 429);
     const form = await req.formData();
     const fields: Record<string, string> = {};

@@ -14,7 +14,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 // Client-supplied candidate ids are ignored to prevent impersonation.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const rl = checkRateLimit(rateLimitKey(req, `interview:start:${params.id}`), 20, 60_000);
+    const rl = await checkRateLimit(rateLimitKey(req, `interview:start:${params.id}`), 20, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many attempts. Slow down.", 429);
 
     const session = await getSession();
