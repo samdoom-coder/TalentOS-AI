@@ -33,7 +33,7 @@ time-to-hire, AI cost) · audit logs · webhooks · admin · exports · feature 
 ```bash
 cd infrastructure/docker
 docker compose up --build
-# use prisma/schema.postgres.prisma as prisma/schema.prisma, set DATABASE_URL + REDIS_URL
+# Postgres schema + migrations: prisma/postgres/ (set DATABASE_URL + REDIS_URL)
 ```
 
 Swap seams without touching callers: `getProvider()` (OpenAI/Anthropic/Gemini/local),
@@ -47,7 +47,7 @@ Swap seams without touching callers: `getProvider()` (OpenAI/Anthropic/Gemini/lo
 /lib                  auth, db, ai (+providers, prompt registry), resumes, matching,
                       coding, queue, storage, email, audit, flags, billing, search,
                       voice, webhooks, workers
-/prisma               schema.prisma (SQLite dev) + schema.postgres.prisma (prod) + seed
+/prisma               schema.prisma (SQLite dev) + postgres/ (prod schema + migrations) + seed
 /tests                vitest unit + Playwright e2e
 /docs                 architecture, API, rollout phases
 ```

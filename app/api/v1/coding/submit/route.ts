@@ -5,6 +5,7 @@ import { P } from "@/lib/db/json";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { gradeSubmission } from "@/lib/coding/sandbox";
 import { getSession } from "@/lib/auth/session";
+import { candidateIdsForUser } from "@/lib/candidates/identity";
 import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
 const LANGUAGE_ALLOWLIST = new Set(["javascript", "typescript"]);
@@ -13,9 +14,8 @@ export async function POST(req: NextRequest) {
   try {
     const rl = checkRateLimit(rateLimitKey(req, "coding:submit"), 30, 60_000);
     if (!rl.allowed) return errorResponse("RATE_LIMITED", "Too many submissions. Slow down.", 429);
-    const { codingQuestionId, candidateId, attemptId, code, language } = z.object({
+    const { codingQuestionId, attemptId, code, language } = z.object({
       codingQuestionId: z.string().optional(),
-      candidateId: z.string().optional(),
       attemptId: z.string().optional(),
       code: z.string().min(1).max(50000),
       language: z.string().default("javascript"),
@@ -26,9 +26,43 @@ export async function POST(req: NextRequest) {
     // Real assessment submissions require an authenticated session (prevents
     // anonymous grading abuse + hidden-test probing). Practice runs without a
     // question id remain open but rate-limited above.
+    let candidateId: string | undefined;
     if (codingQuestionId) {
       const session = await getSession();
       if (!session) return errorResponse("UNAUTHORIZED", "Sign in to submit.", 401);
+
+      if (attemptId) {
+        const attempt = await prisma.assessmentAttempt.findUnique({
+          where: { id: attemptId },
+          include: { assessment: { select: { timeLimitMin: true } } },
+        });
+        if (!attempt) return errorResponse("NOT_FOUND", "Attempt not found.", 404);
+        if (attempt.status !== "started") {
+          return errorResponse("CONFLICT", "This attempt has already been submitted.", 409);
+        }
+        if (attempt.assessment.timeLimitMin) {
+          const deadline = attempt.startedAt.getTime() + attempt.assessment.timeLimitMin * 60_000 + 60_000;
+          if (Date.now() > deadline) {
+            await prisma.assessmentAttempt.update({ where: { id: attempt.id }, data: { status: "expired" } });
+            return errorResponse("CONFLICT", "The time limit for this attempt has passed.", 409);
+          }
+        }
+        // Never trust a client-supplied candidate id: the attempt is the
+        // authority, and it must belong to the signed-in account.
+        if (!attempt.candidateId) {
+          return errorResponse("FORBIDDEN", "Not your attempt.", 403);
+        }
+        const owned = await candidateIdsForUser(session.sub);
+        if (!owned.includes(attempt.candidateId)) {
+          return errorResponse("FORBIDDEN", "Not your attempt.", 403);
+        }
+        candidateId = attempt.candidateId;
+      } else {
+        // Standalone coding questions still attribute the run to the
+        // signed-in candidate when one exists.
+        const ids = await candidateIdsForUser(session.sub);
+        candidateId = ids[0];
+      }
     }
 
     let publicTests: { name: string; input?: unknown; expected?: unknown }[] = [{ name: "smoke", expected: null }];

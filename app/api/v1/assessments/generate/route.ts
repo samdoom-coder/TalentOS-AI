@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/utils";
 import { runAi } from "@/lib/ai/service";
-import { requireOrgAccess } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { requireOrgPermission } from "@/lib/auth/session";
 import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 
 // AI question generation (draft only — recruiter must review/approve before publishing).
@@ -18,17 +17,9 @@ export async function POST(req: NextRequest) {
       type: z.string().default("mcq"),
       difficulty: z.string().default("medium"),
       count: z.number().min(1).max(20).default(5),
-      organizationId: z.string().optional(),
+      organizationId: z.string().min(1),
     }).parse(await req.json());
-    if (organizationId) {
-      try {
-        const { membership } = await requireOrgAccess(organizationId);
-        if (!can(membership.role, "assessments:manage")) return errorResponse("FORBIDDEN", "Cannot generate assessments.", 403);
-      } catch (e) {
-        const status = (e as Error & { status?: number }).status ?? 401;
-        return errorResponse(status === 403 ? "FORBIDDEN" : "UNAUTHORIZED", "Not authorized.", status);
-      }
-    }
+    await requireOrgPermission(organizationId, "assessments:manage");
     const result = await runAi({
       task: "question_generation",
       userPrompt: `Role context: ${jobDescription.slice(0, 2000)}\nSkills: ${skills.join(", ")}\nLevel: ${level}\nType: ${type}\nDifficulty: ${difficulty}\nCount: ${count}\n\nReturn a JSON array: [{type, prompt, options?, answerKey?, points}]. These are DRAFTS for human review.`,
@@ -38,6 +29,11 @@ export async function POST(req: NextRequest) {
     return successResponse({ draft: result.text, provider: result.provider });
   } catch (e) {
     if (e instanceof z.ZodError) return errorResponse("VALIDATION_ERROR", "Invalid input.", 400, e.flatten());
-    return errorResponse("AI_FAILED", e instanceof Error ? e.message : "Generation failed.", 500);
+    const status = (e as Error & { status?: number }).status ?? 500;
+    return errorResponse(
+      status === 403 ? "FORBIDDEN" : status === 401 ? "UNAUTHORIZED" : "AI_FAILED",
+      e instanceof Error ? e.message : "Generation failed.",
+      status
+    );
   }
 }

@@ -15,7 +15,7 @@ export function JobCreator({ orgId, onDone }: { orgId: string; onDone: () => voi
     setBusy(true);
     setErr(null);
     try {
-      const r = await api<{ draft: string }>(`/api/v1/jobs/draft/generate`, {
+      const r = await api<{ draft: string }>(`/api/v1/jobs/generate`, {
         method: "POST",
         body: JSON.stringify({ brief, organizationId: orgId }),
       });

@@ -17,6 +17,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     },
   });
   if (!job || job.deletedAt) return errorResponse("NOT_FOUND", "Job could not be found.", 404);
+  try {
+    const { membership } = await requireOrgAccess(job.organizationId);
+    if (!can(membership.role, "jobs:view")) return errorResponse("FORBIDDEN", "No access to this job.", 403);
+  } catch (e) {
+    const status = (e as Error & { status?: number }).status ?? 401;
+    return errorResponse(status === 403 ? "FORBIDDEN" : "UNAUTHORIZED", "Not authorized.", status);
+  }
   return successResponse(job);
 }
 

@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit/audit";
 import { cookies } from "next/headers";
 import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 import { generateSecureToken, hashToken, verifyTokenHash } from "@/lib/security/tokens";
+import { ensureCandidateProfile } from "@/lib/candidates/identity";
 
 const DEFAULT_STAGES = [
   { name: "Applied", slug: "applied", candidateFacing: "Application Received" },
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
       } else {
         await setSessionCookie({ sub: user.id, email: user.email, name: user.name, role });
       }
+      if (body.role === "candidate") {
+        await ensureCandidateProfile({ sub: user.id, email: user.email, name: user.name }).catch(() => undefined);
+      }
       await audit({ organizationId: orgId, actorId: user.id, action: "user.signup", resource: "user", resourceId: user.id });
       return successResponse({ id: user.id, email: user.email, name: user.name, orgId, role }, 201);
     }
@@ -99,6 +103,9 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
         sub: user.id, email: user.email, name: user.name,
         orgId: membership?.organizationId, role: membership?.role ?? user.role,
       });
+      if (user.role === "candidate") {
+        await ensureCandidateProfile({ sub: user.id, email: user.email, name: user.name }).catch(() => undefined);
+      }
       await audit({ organizationId: membership?.organizationId, actorId: user.id, action: "user.login", resource: "user", resourceId: user.id });
       return successResponse({ id: user.id, email: user.email, name: user.name, orgId: membership?.organizationId, role: membership?.role ?? user.role });
     }
@@ -181,6 +188,7 @@ export async function GET(req: NextRequest, { params }: { params: { action: stri
     if (!user) return errorResponse("UNAUTHORIZED", "Account not found.", 401);
     return successResponse({
       id: user.id, email: user.email, name: user.name,
+      emailVerified: user.emailVerified,
       orgId: session.orgId ?? user.memberships[0]?.organizationId,
       role: session.role ?? user.memberships[0]?.role ?? user.role,
       organizations: user.memberships.map((m) => ({ id: m.organization.id, name: m.organization.name, slug: m.organization.slug, role: m.role })),

@@ -2,7 +2,7 @@
 //
 // SQLite (Prisma) has no Json type, so flexible fields are stored as JSON text
 // in String columns — the same code runs unchanged on Postgres (see
-// schema.postgres.prisma). Always write with J()/Jo() and read with P().
+// prisma/postgres/schema.prisma). Always write with J()/Jo() and read with P().
 
 /** Serialize for storage (required column). */
 export function J(v: unknown): string {

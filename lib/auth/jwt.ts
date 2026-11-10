@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 
-function getSecret(): Uint8Array {
+export function getAuthSecret(): Uint8Array {
   const raw = process.env.AUTH_SECRET;
   if (!raw || raw.length < 32) {
     if (process.env.NODE_ENV === "production") {
@@ -27,12 +27,12 @@ export async function signSession(payload: SessionPayload, expiresIn = "7d"): Pr
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
-    .sign(getSecret());
+    .sign(getAuthSecret());
 }
 
 export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, getAuthSecret());
     return payload as unknown as SessionPayload;
   } catch {
     return null;

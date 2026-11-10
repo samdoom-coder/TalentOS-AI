@@ -3,6 +3,13 @@ import { validateResumeUpload, safeDownloadMime } from "@/lib/security/uploads";
 import { generateSecureToken, hashToken, verifyTokenHash } from "@/lib/security/tokens";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { isBlockedWebhookUrl } from "@/lib/security/fetch";
+import {
+  signAssessmentInvite,
+  verifyAssessmentInvite,
+  signAssessmentAttempt,
+  verifyAssessmentAttempt,
+} from "@/lib/assessments/tokens";
+import { applicationSchema } from "@/lib/validations";
 
 describe("upload validation", () => {
   it("accepts a real PDF by magic bytes, rejects spoofed extension", () => {
@@ -46,5 +53,51 @@ describe("webhook SSRF guard", () => {
     expect(isBlockedWebhookUrl("http://10.0.0.1/x")).toBe(true);
     expect(isBlockedWebhookUrl("ftp://example.com/x")).toBe(true);
     expect(isBlockedWebhookUrl("https://example.com/webhook")).toBe(false);
+  });
+});
+
+describe("assessment tokens", () => {
+  it("signs and verifies invite payloads, rejects tampering", async () => {
+    const token = await signAssessmentInvite({
+      sub: "candidate-1",
+      assessmentId: "assessment-1",
+      organizationId: "org-1",
+      candidateId: "candidate-1",
+      applicationId: "app-1",
+    });
+    const payload = await verifyAssessmentInvite(token);
+    expect(payload?.assessmentId).toBe("assessment-1");
+    expect(payload?.candidateId).toBe("candidate-1");
+    expect(payload?.applicationId).toBe("app-1");
+    expect(await verifyAssessmentInvite(`${token}x`)).toBeNull();
+    expect(await verifyAssessmentAttempt(token)).toBeNull();
+  });
+
+  it("signs and verifies attempt payloads", async () => {
+    const token = await signAssessmentAttempt({
+      sub: "candidate-1",
+      attemptId: "attempt-1",
+      assessmentId: "assessment-1",
+      candidateId: "candidate-1",
+    }, "1h");
+    const payload = await verifyAssessmentAttempt(token);
+    expect(payload?.attemptId).toBe("attempt-1");
+    expect(payload?.sub).toBe("candidate-1");
+    expect(await verifyAssessmentInvite(token)).toBeNull();
+  });
+});
+
+describe("application URLs", () => {
+  const base = {
+    jobId: "job-1",
+    name: "Jane Doe",
+    email: "jane@example.com",
+    consent: true,
+  };
+  it("allows empty or http(s) URLs only", () => {
+    expect(applicationSchema.safeParse({ ...base, linkedinUrl: "" }).success).toBe(true);
+    expect(applicationSchema.safeParse({ ...base, linkedinUrl: "https://linkedin.com/in/jane" }).success).toBe(true);
+    expect(applicationSchema.safeParse({ ...base, linkedinUrl: "javascript:alert(1)" }).success).toBe(false);
+    expect(applicationSchema.safeParse({ ...base, portfolioUrl: "data:text/html,<script>alert(1)</script>" }).success).toBe(false);
   });
 });

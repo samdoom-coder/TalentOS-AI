@@ -9,11 +9,12 @@ export default function PublicJobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [job, setJob] = useState<any>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", location: "", title: "", linkedinUrl: "", consent: false });
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [resume, setResume] = useState<File | null>(null);
   const [status, setStatus] = useState<{ ok?: string; err?: string; busy?: boolean }>({});
 
   useEffect(() => {
-    fetch(`/api/v1/jobs/${id}`).then(async (r) => {
+    fetch(`/api/v1/public/jobs/${id}`).then(async (r) => {
       const j = await r.json();
       if (j.success) setJob(j.data);
     });
@@ -25,6 +26,7 @@ export default function PublicJobDetailPage() {
     const fd = new FormData();
     fd.set("jobId", id);
     Object.entries(form).forEach(([k, v]) => fd.set(k, String(v)));
+    Object.entries(answers).forEach(([qid, value]) => fd.set(`q_${qid}`, value));
     if (resume) fd.set("resume", resume);
     const res = await fetch("/api/v1/public/apply", { method: "POST", body: fd });
     const json = await res.json();
@@ -79,7 +81,14 @@ export default function PublicJobDetailPage() {
               {(job.questions ?? []).map((q: any) => (
                 <div key={q.id}>
                   <label className="label" htmlFor={q.id}>{q.question}{q.required ? " *" : ""}</label>
-                  <input id={q.id} name={`q_${q.id}`} required={q.required} className="input" onChange={(e) => setForm({ ...form })} />
+                  <input
+                    id={q.id}
+                    name={`q_${q.id}`}
+                    required={q.required}
+                    className="input"
+                    value={answers[q.id] ?? ""}
+                    onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                  />
                 </div>
               ))}
               <div>

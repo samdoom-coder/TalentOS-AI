@@ -72,7 +72,7 @@ async function main() {
   }
 
   // Candidate login
-  await prisma.user.upsert({
+  const demoUser = await prisma.user.upsert({
     where: { email: "candidate@example.com" },
     update: {},
     create: { email: "candidate@example.com", name: "Demo Candidate", passwordHash, emailVerified: true, role: "candidate" },
@@ -117,6 +117,112 @@ async function main() {
     });
     jobs.push(job);
   }
+
+  // Demo candidate account gets a real global profile + application so the
+  // candidate portal, assessments and interviews all have data to work with.
+  const demoCandidate = await prisma.candidate.upsert({
+    where: { id: "seed-demo-candidate" },
+    update: {
+      userId: demoUser.id,
+      name: "Demo Candidate",
+      email: "candidate@example.com",
+      phone: "+91 90000 00000",
+      location: "Bengaluru",
+      title: "Senior Frontend Engineer",
+      summary: "Frontend engineer with 6 years of experience building accessible, high-performance product interfaces.",
+      experienceYrs: 6,
+      portfolioUrl: "https://example.com/portfolio",
+      linkedinUrl: "https://www.linkedin.com/in/example",
+      githubUrl: "https://github.com/example",
+      discoverable: true,
+      visibility: "public",
+    },
+    create: {
+      id: "seed-demo-candidate",
+      organizationId: null,
+      userId: demoUser.id,
+      name: "Demo Candidate",
+      email: "candidate@example.com",
+      phone: "+91 90000 00000",
+      location: "Bengaluru",
+      title: "Senior Frontend Engineer",
+      summary: "Frontend engineer with 6 years of experience building accessible, high-performance product interfaces.",
+      experienceYrs: 6,
+      portfolioUrl: "https://example.com/portfolio",
+      linkedinUrl: "https://www.linkedin.com/in/example",
+      githubUrl: "https://github.com/example",
+      discoverable: true,
+      visibility: "public",
+    },
+  });
+  await prisma.candidateSkill.deleteMany({ where: { candidateId: demoCandidate.id } });
+  await prisma.candidateExperience.deleteMany({ where: { candidateId: demoCandidate.id } });
+  for (const skill of ["React", "TypeScript", "Next.js", "Accessibility", "Design Systems"]) {
+    await prisma.candidateSkill.create({ data: { candidateId: demoCandidate.id, skill, years: 4 } }).catch(() => undefined);
+  }
+  await prisma.candidateExperience.create({
+    data: {
+      candidateId: demoCandidate.id,
+      company: "Northstar Labs",
+      role: "Senior Frontend Engineer",
+      startDate: "2022",
+      current: true,
+      description: "Led the design-system and checkout performance work.",
+    },
+  }).catch(() => undefined);
+  // Org-scoped row used by the ATS; linked to the same user as the global
+  // self-managed profile so the portal sees the application.
+  const demoOrgCandidate = await prisma.candidate.upsert({
+    where: { id: "seed-demo-org-candidate" },
+    update: {
+      userId: demoUser.id,
+      name: "Demo Candidate",
+      email: "candidate@example.com",
+      organizationId: jobs[0].organizationId,
+      phone: "+91 90000 00000",
+      location: "Bengaluru",
+      title: "Senior Frontend Engineer",
+      summary: "Frontend engineer with 6 years of experience building accessible, high-performance product interfaces.",
+      experienceYrs: 6,
+      portfolioUrl: "https://example.com/portfolio",
+      linkedinUrl: "https://www.linkedin.com/in/example",
+      githubUrl: "https://github.com/example",
+    },
+    create: {
+      id: "seed-demo-org-candidate",
+      organizationId: jobs[0].organizationId,
+      userId: demoUser.id,
+      name: "Demo Candidate",
+      email: "candidate@example.com",
+      phone: "+91 90000 00000",
+      location: "Bengaluru",
+      title: "Senior Frontend Engineer",
+      summary: "Frontend engineer with 6 years of experience building accessible, high-performance product interfaces.",
+      experienceYrs: 6,
+      portfolioUrl: "https://example.com/portfolio",
+      linkedinUrl: "https://www.linkedin.com/in/example",
+      githubUrl: "https://github.com/example",
+    },
+  });
+  await prisma.candidateSkill.deleteMany({ where: { candidateId: demoOrgCandidate.id } });
+  for (const skill of ["React", "TypeScript", "Next.js"]) {
+    await prisma.candidateSkill.create({ data: { candidateId: demoOrgCandidate.id, skill, years: 5 } }).catch(() => undefined);
+  }
+  await prisma.application.upsert({
+    where: { jobId_candidateId: { jobId: jobs[0].id, candidateId: demoOrgCandidate.id } },
+    update: { stage: "assessment" },
+    create: {
+      organizationId: jobs[0].organizationId,
+      jobId: jobs[0].id,
+      candidateId: demoOrgCandidate.id,
+      stage: "assessment",
+      status: "active",
+      matchScore: 86,
+      source: "seed",
+      events: { create: { type: "applied", message: "Seeded demo application" } },
+      stageHistory: { create: { toStage: "assessment" } },
+    },
+  });
 
   // 30 candidates with applications spread across stages + scores/evidence
   const stageCycle = ["applied", "screening", "assessment", "interview", "offer", "hired", "rejected", "screening", "assessment", "interview"];
@@ -167,11 +273,18 @@ async function main() {
     void app;
   }
 
-  // 3 assessments with sections/questions
+  // 3 assessments with sections/questions (linked to a job so candidates with
+  // applications can access them; recruiters can also issue invite links)
   for (const [ai, title] of ["Frontend Screening", "Backend Fundamentals", "Sales Situational"].entries()) {
-    const a = await prisma.assessment.create({
-      data: {
-        organizationId: orgs[ai % 3].id,
+    const assessmentOrgId = orgs[ai % 3].id;
+    const assessmentJob = jobs.find((j) => j.organizationId === assessmentOrgId);
+    const a = await prisma.assessment.upsert({
+      where: { id: `seed-assessment-${ai + 1}` },
+      update: { jobId: assessmentJob?.id ?? null },
+      create: {
+        id: `seed-assessment-${ai + 1}`,
+        organizationId: assessmentOrgId,
+        jobId: assessmentJob?.id,
         title,
         description: `Seeded ${title} — MCQ + scenario.`,
         passingScore: 60,
@@ -195,10 +308,27 @@ async function main() {
     void a;
   }
 
-  // 5 AI interviews (text) with one evaluated session each on first org
+  // 5 AI interviews (text) with one evaluated session each on first org.
+  // Fixed ids + child cleanup keep repeated seeds idempotent.
   for (let i = 0; i < 5; i++) {
-    const iv = await prisma.interview.create({
-      data: {
+    const interviewId = `seed-interview-${i + 1}`;
+    const sessionIds = (await prisma.interviewSession.findMany({ where: { interviewId }, select: { id: true } })).map((s) => s.id);
+    if (sessionIds.length) {
+      await prisma.interviewEvaluation.deleteMany({ where: { sessionId: { in: sessionIds } } });
+      await prisma.interviewTranscript.deleteMany({ where: { sessionId: { in: sessionIds } } });
+      await prisma.interviewSession.deleteMany({ where: { id: { in: sessionIds } } });
+    }
+    await prisma.interviewQuestion.deleteMany({ where: { interviewId } });
+    const iv = await prisma.interview.upsert({
+      where: { id: interviewId },
+      update: {
+        organizationId: orgs[i % 3].id,
+        jobId: jobs[i % jobs.length].id,
+        title: `${jobs[i % jobs.length].title} — AI Screen ${i + 1}`,
+        status: "published",
+      },
+      create: {
+        id: interviewId,
         organizationId: orgs[i % 3].id,
         jobId: jobs[i % jobs.length].id,
         title: `${jobs[i % jobs.length].title} — AI Screen ${i + 1}`,
@@ -209,8 +339,13 @@ async function main() {
         questionCount: 5,
         criteria: J(["Technical Knowledge", "Communication", "Problem Solving"]),
         status: "published",
-        questions: { create: [{ prompt: "Tell me about a project you are proud of and your specific contribution.", sortOrder: 0 }, { prompt: "Describe a production issue you debugged end-to-end.", sortOrder: 1 }] },
       },
+    });
+    await prisma.interviewQuestion.createMany({
+      data: [
+        { interviewId: iv.id, prompt: "Tell me about a project you are proud of and your specific contribution.", sortOrder: 0 },
+        { interviewId: iv.id, prompt: "Describe a production issue you debugged end-to-end.", sortOrder: 1 },
+      ],
     });
     const sess = await prisma.interviewSession.create({ data: { interviewId: iv.id, status: "evaluated", startedAt: new Date(), endedAt: new Date(), summary: "Seeded summary: solid experience, verify depth in follow-up." } });
     await prisma.interviewTranscript.createMany({

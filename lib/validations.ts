@@ -2,6 +2,16 @@ import { z } from "zod";
 
 // Shared typed API contracts. Every route validates external input with these.
 
+// URLs are user-supplied and later rendered as links; only allow http(s).
+const optionalHttpUrl = z
+  .string()
+  .max(500)
+  .refine(
+    (v) => v === "" || (/^https?:\/\//i.test(v) && z.string().url().safeParse(v).success),
+    "Must be an http(s) URL."
+  )
+  .optional();
+
 export const signupSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
@@ -49,9 +59,9 @@ export const applicationSchema = z.object({
   phone: z.string().optional(),
   location: z.string().optional(),
   title: z.string().optional(),
-  linkedinUrl: z.string().optional(),
-  githubUrl: z.string().optional(),
-  portfolioUrl: z.string().optional(),
+  linkedinUrl: optionalHttpUrl,
+  githubUrl: optionalHttpUrl,
+  portfolioUrl: optionalHttpUrl,
   answers: z.record(z.string()).optional(),
   consent: z.boolean().refine((v) => v === true, { message: "Consent is required" }),
 });

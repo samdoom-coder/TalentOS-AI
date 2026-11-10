@@ -1,19 +1,25 @@
-# Production web image. Local dev runs `npm run dev` with SQLite (no Docker needed).
+# Production web/worker image. Local dev runs `npm run dev` with SQLite (no Docker needed).
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# postinstall needs the schema/scripts; generate explicitly in the builder instead.
+RUN npm ci --no-audit --no-fund --ignore-scripts
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV DATABASE_PROVIDER=postgresql
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate
+RUN node scripts/prisma-generate.mjs
 RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV DATABASE_PROVIDER=postgresql
+ENV NEXT_TELEMETRY_DISABLED=1
 # Non-root for least privilege
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/package.json /app/package-lock.json ./
@@ -21,9 +27,13 @@ COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 COPY --from=builder --chown=app:app /app/.next ./.next
 COPY --from=builder --chown=app:app /app/public ./public
 COPY --from=builder --chown=app:app /app/prisma ./prisma
+COPY --from=builder --chown=app:app /app/scripts ./scripts
+COPY --from=builder --chown=app:app /app/lib ./lib
+COPY --from=builder --chown=app:app /app/worker.ts ./worker.ts
+COPY --from=builder --chown=app:app /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=app:app /app/next.config.mjs ./
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
-# Apply migrations at boot, then start (Postgres prod).
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+# Apply Postgres migrations at boot, then start.
+CMD ["sh", "-c", "node scripts/prisma-deploy.mjs && npm run start"]
