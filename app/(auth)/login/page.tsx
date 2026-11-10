@@ -20,7 +20,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/dashboard";
+  const rawNext = useSearchParams().get("next");
+  // Only allow same-site relative destinations (no open redirect).
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
 

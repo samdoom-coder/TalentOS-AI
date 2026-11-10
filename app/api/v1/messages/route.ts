@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const organizationId = sp.get("orgId");
     if (!organizationId) return errorResponse("VALIDATION_ERROR", "orgId is required.", 400);
-    await requireOrgAccess(organizationId);
+    const { membership } = await requireOrgAccess(organizationId);
+    if (!can(membership.role, "messages:view")) return errorResponse("FORBIDDEN", "No access to candidate messages.", 403);
     const { page, limit, skip, take } = getPagination(sp);
     const where = { organizationId };
     const [total, items] = await Promise.all([

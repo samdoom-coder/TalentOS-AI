@@ -1,5 +1,5 @@
-// TalentOS AI — Prisma schema (SQLite for local dev).
-// Production: use schema.postgres.prisma with provider="postgresql" (identical models).
+// TalentOS AI — Prisma schema (PostgreSQL production).
+// Keep models in sync with prisma/schema.prisma (SQLite local dev).
 // All tenant-scoped models carry organizationId. Roles are Strings (RBAC in lib/auth/rbac.ts).
 
 generator client {

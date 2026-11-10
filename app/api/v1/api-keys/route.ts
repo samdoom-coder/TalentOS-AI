@@ -47,7 +47,9 @@ export async function DELETE(req: NextRequest) {
   try {
     const { membership, session } = await requireOrgAccess(orgId);
     if (!can(membership.role, "org:manage")) return errorResponse("FORBIDDEN", "Only owners/admins.", 403);
-    await prisma.apiKey.update({ where: { id }, data: { revokedAt: new Date() } });
+    const key = await prisma.apiKey.findFirst({ where: { id, organizationId: orgId } });
+    if (!key) return errorResponse("NOT_FOUND", "API key not found in this organization.", 404);
+    await prisma.apiKey.update({ where: { id: key.id }, data: { revokedAt: new Date() } });
     await audit({ organizationId: orgId, actorId: session.sub, action: "apikey.revoked", resource: "api_key", resourceId: id });
     return successResponse({ ok: true });
   } catch {

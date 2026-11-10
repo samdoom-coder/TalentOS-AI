@@ -1,5 +1,5 @@
-// Minimal Redis RESP client (no dependency) for queue driver.
-// Supports only what the queue needs: LPUSH, BRPOP (poll via RPOP), LLEN, PING.
+// Minimal Redis RESP client (no dependency) for the queue driver.
+// Supports only what the queue needs: LPUSH, BRPOP, LLEN, PING.
 // Falls back to in-process when REDIS_URL is unset or unreachable.
 
 import net from "net";
@@ -58,39 +58,51 @@ export function parseRedisUrl(url: string): { host: string; port: number; passwo
 export async function connectRedis(url: string, timeoutMs = 3000): Promise<RedisConn> {
   const { host, port, password } = parseRedisUrl(url);
   const socket = net.createConnection({ host, port });
+  socket.setNoDelay(true);
   await new Promise<void>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("redis connect timeout")), timeoutMs);
     socket.once("connect", () => { clearTimeout(t); resolve(); });
     socket.once("error", (e) => { clearTimeout(t); reject(e); });
   });
+
   let pending: Buffer = Buffer.alloc(0);
-  const waiters: ((buf: Buffer) => void)[] = [];
+  let failure: Error | null = null;
+  const waiters: Array<{ resolve: (v: unknown) => void; reject: (e: Error) => void }> = [];
+
+  function flush() {
+    while (pending.length && waiters.length) {
+      const waiter = waiters[0];
+      try {
+        const { value, rest } = parseReply(pending);
+        pending = rest;
+        waiters.shift();
+        waiter.resolve(value);
+      } catch (e) {
+        if ((e as Error).message === "partial") return;
+        waiters.shift();
+        waiter.reject(e as Error);
+      }
+    }
+  }
+
+  function fail(error: Error) {
+    failure = error;
+    for (const w of waiters.splice(0)) w.reject(error);
+  }
+
   socket.on("data", (d: Buffer) => {
-    pending = Buffer.concat([pending, d]) as Buffer;
-    const ws = waiters.splice(0);
-    for (const w of ws) w(pending);
+    pending = Buffer.concat([pending, d]);
+    flush();
   });
+  socket.on("error", (e: Error) => fail(e));
+  socket.on("close", () => fail(new Error("redis connection closed")));
 
   async function cmd(...args: string[]): Promise<unknown> {
-    socket.write(encode(...args));
+    if (failure) throw failure;
     return new Promise((resolve, reject) => {
-      const onData = (buf: Buffer) => {
-        try {
-          const { value, rest } = parseReply(buf);
-          pending = rest;
-          resolve(value);
-        } catch (e) {
-          if ((e as Error).message === "partial") {
-            waiters.push(onData);
-          } else reject(e);
-        }
-      };
-      waiters.push(onData);
-      // trigger immediately in case data already arrived
-      if (pending.length) {
-        const ws = waiters.splice(0);
-        for (const w of ws) w(pending);
-      }
+      waiters.push({ resolve, reject });
+      socket.write(encode(...args));
+      flush();
     });
   }
 

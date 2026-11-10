@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
   if (!orgId) return errorResponse("VALIDATION_ERROR", "orgId is required.", 400);
   try {
-    await requireOrgAccess(orgId);
+    const { membership } = await requireOrgAccess(orgId);
+    if (!can(membership.role, "org:manage")) return errorResponse("FORBIDDEN", "Only owners/admins can manage webhooks.", 403);
   } catch {
     return errorResponse("UNAUTHORIZED", "Not authorized.", 401);
   }

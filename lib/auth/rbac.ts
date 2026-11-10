@@ -30,6 +30,7 @@ export const PERMISSIONS = {
   "interviews:manage": ["owner", "admin", "recruiter"],
   "interviews:conduct": ["owner", "admin", "recruiter", "interviewer"],
   "feedback:submit": ["owner", "admin", "recruiter", "hiring_manager", "interviewer"],
+  "messages:view": ["owner", "admin", "recruiter", "hiring_manager"],
   "messages:send": ["owner", "admin", "recruiter"],
   "analytics:view": ["owner", "admin", "recruiter", "hiring_manager"],
   "admin:view": ["owner", "admin"],

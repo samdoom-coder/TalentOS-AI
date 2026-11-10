@@ -33,6 +33,14 @@ export default function CandidateInterviewPage() {
     const j = await res.json();
     if (!j.success) { setErr(j.error?.message ?? "Could not start."); return; }
     setSessionId(j.data.sessionId);
+    if (j.data.resumed) {
+      const existing = await fetch(`/api/v1/interviews/sessions/${j.data.sessionId}/complete`).then((r) => r.json()).catch(() => null);
+      const history = existing?.success
+        ? (existing.data.transcripts ?? []).filter((t: any) => t.speaker !== "system").map((t: any) => ({ speaker: t.speaker, message: t.message }))
+        : [];
+      setMsgs(history.length ? history : [{ speaker: "ai", message: `Welcome back. Let's continue.\n\n${j.data.welcome}` }]);
+      return;
+    }
     setMsgs([{ speaker: "ai", message: `Welcome! I'm your AI interviewer. Let's begin.\n\n${j.data.welcome}` }]);
   }
 

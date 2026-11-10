@@ -43,7 +43,7 @@
   `can(role, permission)` enforced in every mutating route. Middleware guards pages;
   APIs never trust it.
 - **SQLite dev / Postgres prod**: identical Prisma models, two datasource files.
-  Swap `schema.postgres.prisma` → `schema.prisma` and set `DATABASE_URL`.
+  Postgres schema/migrations live in `prisma/postgres/`; set `DATABASE_PROVIDER=postgresql`.
 - **AI abstraction**: `AiProvider` interface + `runAi()` central runner. All runs logged
   to `ai_runs` (provider, model, prompt version, tokens, latency, cost, status) with
   retry + explicit mock fallback. Prompts live only in `lib/ai/prompts/registry.ts`.

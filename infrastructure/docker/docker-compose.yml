@@ -29,13 +29,26 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.web
     command: ["npx", "tsx", "worker.ts"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://talentos:talentos@postgres:5432/talentos
+      DATABASE_PROVIDER: postgresql
       REDIS_URL: redis://redis:6379
+      # REQUIRED: export AUTH_SECRET with 32+ random chars; compose fails fast otherwise.
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET to 32+ random chars}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      EXECUTION_PROVIDER: ${EXECUTION_PROVIDER:-judge0}
+      STORAGE_PROVIDER: local
+      STORAGE_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   postgres:
     image: postgres:16-alpine

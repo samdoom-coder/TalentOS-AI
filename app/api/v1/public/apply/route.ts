@@ -11,6 +11,8 @@ import { emitEvent } from "@/lib/webhooks/webhooks";
 import { ensureWorkers } from "@/lib/bootstrap";
 import { checkRateLimit, rateLimitKey } from "@/lib/security/rate-limit";
 import { validateResumeUpload } from "@/lib/security/uploads";
+import { getSession } from "@/lib/auth/session";
+import { linkCandidateToUser } from "@/lib/candidates/identity";
 import { z } from "zod";
 
 ensureWorkers();
@@ -44,9 +46,25 @@ export async function POST(req: NextRequest) {
       consent: fields.consent === "true" || fields.consent === "on",
     });
 
-    const job = await prisma.job.findUnique({ where: { id: input.jobId } });
+    const job = await prisma.job.findUnique({
+      where: { id: input.jobId },
+      include: { questions: { orderBy: { sortOrder: "asc" } } },
+    });
     if (!job || job.deletedAt || job.status !== "published") {
       return errorResponse("NOT_FOUND", "This job is no longer accepting applications.", 404);
+    }
+
+    // Only accept answers to this job's questions; enforce required ones.
+    const questionById = new Map(job.questions.map((q) => [q.id, q]));
+    for (const key of Object.keys(answers)) {
+      if (!questionById.has(key)) {
+        return errorResponse("VALIDATION_ERROR", "An answer references a question that does not belong to this job.", 400);
+      }
+    }
+    for (const q of job.questions) {
+      if (q.required && !answers[q.id]?.trim()) {
+        return errorResponse("VALIDATION_ERROR", `Please answer: ${q.question}`, 400);
+      }
     }
 
     const file = form.get("resume");
@@ -85,6 +103,13 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.application.findUnique({ where: { jobId_candidateId: { jobId: job.id, candidateId: candidate.id } } });
     if (existing) return errorResponse("CONFLICT", "You have already applied to this job.", 409);
+
+    // If a candidate is signed in and applying with their own address, link the
+    // org candidate record to their account so the candidate portal can see it.
+    const session = await getSession().catch(() => null);
+    if (session && session.role === "candidate" && session.email.toLowerCase() === input.email.toLowerCase()) {
+      await linkCandidateToUser(candidate.id, session.sub);
+    }
 
     const application = await prisma.application.create({
       data: {
